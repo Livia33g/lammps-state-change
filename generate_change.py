@@ -304,6 +304,7 @@ variable        current_step equal step
 # 11. Main simulation loop with continuous state change checks
 variable        total_steps equal {timesteps}
 variable        state_change_freq equal {state_change_freq}  # Define as LAMMPS variable
+variable        check_counter equal 0  # Counter for state change checks
 
 label           loop
 
@@ -311,11 +312,15 @@ label           loop
   variable      current_step equal step
   if "${{current_step}} >= ${{total_steps}}" then "jump SELF end_loop"
   
-  # Check if it's time to check for state changes (every state_change_freq steps)
-  variable      check_time equal (${{current_step}} % ${{state_change_freq}})
+  # Increment check counter
+  variable      check_counter equal ${{check_counter}}+1
   
-  # If not time to check, just run one step and continue
-  if "${{check_time}} != 0" then "run 1" "jump SELF loop"
+  # Check if it's time to check for state changes (every state_change_freq steps)
+  # If counter >= frequency, reset counter and do check
+  if "${{check_counter}} < ${{state_change_freq}}" then "run 1" "jump SELF loop"
+  
+  # Reset counter when we do a check
+  variable      check_counter equal 0
   
   # === STATE CHANGE CHECK ===
   # Delete old computes first (must be done before redefining groups they reference)
