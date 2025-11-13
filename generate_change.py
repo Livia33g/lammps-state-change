@@ -353,6 +353,16 @@ label           loop
   # Type 3: changes to 2 if (coordinated AND random<prob AND cooldown_passed), else stays 3
   variable        new_type atom "type + (type==2) * (c_cA>0.1) * (v_rand_val<{state_change_probability}) * v_cooldown_passed - (type==3) * (c_cB>0.1) * (v_rand_val<{state_change_probability}) * v_cooldown_passed"
   
+  # Check if any atoms will actually change before doing expensive unfix/refix
+  # Compute difference between new and current types for each atom
+  variable        type_diff atom "v_new_type - type"
+  # Sum of absolute differences - if > 0, there are changes
+  compute         cTypeDiff all reduce sum v_type_diff
+  variable        any_changes equal "abs(c_cTypeDiff) > 0.1"
+  
+  # Only do unfix/refix if there are actual changes
+  if "${{any_changes}} == 0" then "jump SELF skip_changes"
+  
   # CRITICAL: Delete rigid fix before changing atom types
   unfix           rigid_nvt
   
@@ -400,6 +410,10 @@ label           loop
   uncompute       cOldType
   uncompute       cNewType
   uncompute       cOldLastChange
+  
+label           skip_changes
+  # Clean up check computes
+  uncompute       cTypeDiff
   
 jump            SELF loop
 
