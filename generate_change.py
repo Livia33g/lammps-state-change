@@ -347,9 +347,12 @@ label           loop
   # For patches_A (type 2): if coordinated AND random<prob AND cooldown passed, change to 3, else stay 2
   # For patches_B (type 3): if coordinated AND random<prob AND cooldown passed, change to 2, else stay 3
   # For body atoms (type 1): always stay 1
-  # Cooldown check: (step - f_lastChange[1]) > cooldown_steps
-  # Note: f_lastChange[1] is the property/atom value (last change timestep)
-  variable        time_since_change atom "step - f_lastChange[1]"
+  # Cooldown check: (step - last_change_timestep) > cooldown_steps
+  # Use compute to access property/atom value (can't access fix property/atom directly in variable)
+  compute         cLastChange all property/atom i_lastChange
+  # Initialize compute before using in variable
+  run             0
+  variable        time_since_change atom "step - c_cLastChange"
   variable        cooldown_passed atom "(v_time_since_change > {cooldown_steps})"
   
   # New type formula with cooldown:
@@ -424,6 +427,7 @@ label           loop
 label           skip_changes
   # Clean up check computes
   uncompute       cNumChanges
+  uncompute       cLastChange
   
 jump            SELF loop
 
