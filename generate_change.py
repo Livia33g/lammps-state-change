@@ -303,6 +303,7 @@ variable        current_step equal step
 
 # 11. Main simulation loop with continuous state change checks
 variable        total_steps equal {timesteps}
+variable        state_change_freq equal {state_change_freq}  # Define as LAMMPS variable
 
 label           loop
 
