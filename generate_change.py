@@ -365,6 +365,9 @@ label           loop
   variable        will_change atom "(abs(v_type_diff) > 0.1)"
   # Sum of atoms that will change - if > 0, there are changes
   compute         cNumChanges all reduce sum v_will_change
+  # Initialize compute by running 0 steps
+  run             0
+  # Now we can use the compute in a variable
   variable        any_changes equal "c_cNumChanges > 0.1"
   
   # Only do unfix/refix if there are actual changes
