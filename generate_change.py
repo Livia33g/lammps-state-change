@@ -399,8 +399,9 @@ label           loop
   # Since LAMMPS set doesn't support variable conditions, we use a workaround:
   # Store old values, update all patches, then restore old values for unchanged atoms
   # Actually simpler: update all patches to current step, then restore old for unchanged
-  set             atom patches_A i_lastChange ${{current_step}}
-  set             atom patches_B i_lastChange ${{current_step}}
+  # Use type-based selection instead of group names (set atom doesn't accept group names)
+  set             atom * type 2 i_lastChange ${{current_step}}
+  set             atom * type 3 i_lastChange ${{current_step}}
   # Restore old last_change value for atoms that didn't actually change
   # Use variable to conditionally restore (but set doesn't support this directly)
   # Workaround: we'll accept that cooldown resets for all patches checked
