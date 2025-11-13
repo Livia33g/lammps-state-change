@@ -356,9 +356,11 @@ label           loop
   # Check if any atoms will actually change before doing expensive unfix/refix
   # Compute difference between new and current types for each atom
   variable        type_diff atom "v_new_type - type"
-  # Sum of absolute differences - if > 0, there are changes
-  compute         cTypeDiff all reduce sum v_type_diff
-  variable        any_changes equal "abs(c_cTypeDiff) > 0.1"
+  # Count atoms that will change (absolute difference > 0.1)
+  variable        will_change atom "(abs(v_type_diff) > 0.1)"
+  # Sum of atoms that will change - if > 0, there are changes
+  compute         cNumChanges all reduce sum v_will_change
+  variable        any_changes equal "c_cNumChanges > 0.1"
   
   # Only do unfix/refix if there are actual changes
   if "${{any_changes}} == 0" then "jump SELF skip_changes"
@@ -413,7 +415,7 @@ label           loop
   
 label           skip_changes
   # Clean up check computes
-  uncompute       cTypeDiff
+  uncompute       cNumChanges
   
 jump            SELF loop
 
