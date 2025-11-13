@@ -1,0 +1,29 @@
+# LAMMPS output files
+*.lammpstrj
+*.log
+*.out
+*.err
+
+# SLURM output files
+slurm-*.out
+slurm-*.err
+
+# Generated simulation directories
+rigid_patchy_simulation/
+rigid_patchy_monomer_simulation/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
