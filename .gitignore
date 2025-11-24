@@ -7,10 +7,16 @@
 # SLURM output files
 slurm-*.out
 slurm-*.err
+slurm_cpp_fix-*.out
+slurm_cpp_fix-*.err
 
 # Generated simulation directories
 rigid_patchy_simulation/
 rigid_patchy_monomer_simulation/
+rigid_patchy_simulation_cpp/
+rigid_patchy_simulation_cpp_test/
+rigid_patchy_simulation_continuous/
+test_potentials/
 
 # Python cache
 __pycache__/
