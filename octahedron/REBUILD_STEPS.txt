@@ -1,0 +1,37 @@
+STEPS TO REBUILD LAMMPS WITH OCTAHEDRON FIX
+===========================================
+
+1. Deactivate conda environment:
+   conda deactivate
+
+2. Go to LAMMPS source directory:
+   cd /work/nvme/bewl/lguttieres/lammps_build/lammps/src
+
+3. Load system modules (NOT conda):
+   module purge
+   module load gcc/11.4.0
+   module load openmpi/4.1.6
+
+4. Make sure fix files are there:
+   ls -la fix_state_change_octahedron.*
+
+5. Add fix to Makefile (if not already there):
+   grep -q "fix_state_change_octahedron.cpp" Makefile || \
+   sed -i '/^fix_state_change\.cpp/a\fix_state_change_octahedron.cpp' Makefile
+
+6. Clean and rebuild:
+   make clean
+   make mpi -j 4
+
+7. Verify it worked:
+   ./lmp_mpi -help | grep "state/change"
+
+You should see both:
+   fix state/change
+   fix state/change/octahedron
+
+OR USE THE SCRIPT:
+==================
+conda deactivate
+bash /work/nvme/bewl/lguttieres/sims/self_processors/sim_templates/state_change/octahedron/build_fix.sh
+

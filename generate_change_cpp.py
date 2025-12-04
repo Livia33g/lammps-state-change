@@ -67,11 +67,16 @@ def generate_potential_table(potential_func, rmin, rmax, npoints=1000, filename=
     F = -dV_dr
     
     # Create table content
+    # LAMMPS pair_style table expects:
+    #   <section_name>
+    #   N <npoints> R <rmin> <rmax>
+    #   i  r  V  F
     table_lines = []
     table_lines.append(f"# Potential table generated automatically")
     table_lines.append(f"# N = {npoints} R = {rmin} {rmax}")
-    table_lines.append(f"\nN {npoints}")
-    table_lines.append(f"R {rmin} {rmax}\n")
+    # Section label required by LAMMPS table pair style
+    table_lines.append("REPULSIVE_11")
+    table_lines.append(f"N {npoints} R {rmin} {rmax}")
     
     for i in range(npoints):
         table_lines.append(f"{i+1} {r[i]:.8e} {V[i]:.8e} {F[i]:.8e}")
@@ -89,8 +94,8 @@ def create_lammps_rigid_patchy_monomers_script_cpp(
     box_size=None,
     rigid_sphere_radius=1.0,
     patch_radius=0.33,
-    patch_offset_dist=1.0,
-    patch_interaction_cutoff_morse=1.5,  # Increased cutoff to allow attractive range (r0=0.66, need cutoff > r0)
+    patch_offset_dist=None,
+    patch_interaction_cutoff_morse=None,
     patch_coordination_cutoff=0.34,  # Tight cutoff for state change detection (requires near-perfect overlap)
     state_change_probability=0.7,
     timesteps=500000000,
@@ -100,7 +105,11 @@ def create_lammps_rigid_patchy_monomers_script_cpp(
     seed=12345,
     state_change_freq=100,  # Check state changes every N timesteps (100 = every 100 timesteps)
     cooldown_steps=1000,  # Cooldown period (increased to prevent rapid toggling)
-    timestep=0.001  # Stable timestep for D0=7.0 with 3-patch configuration
+    timestep=0.001,  # Stable timestep for D0=7.0 with 3-body configuration (can be overridden)
+    morse_D0_22=None,  # Optional: override morse D0 for type 2-2 (default: 13.0)
+    morse_D0_33=None,  # Optional: override morse D0 for type 3-3 (default: 13.0)
+    rep_epsilon=None,  # Optional: override repulsion epsilon (default: 500.0)
+    temperature=None  # Optional: override temperature (default: 1.0)
 ):
     """
     Generates LAMMPS input script using the custom C++ fix_state_change.
@@ -108,9 +117,9 @@ def create_lammps_rigid_patchy_monomers_script_cpp(
     """
     
     if box_size is None:
-        # Use even lower density (0.0002 instead of 0.0005) to create larger box
-        # This further reduces close encounters and improves stability with strong repulsion
-        density = 0.0002  # Lower density = larger box
+        # Use higher density (0.001) for higher concentration
+        # Higher concentration = smaller box = more frequent collisions
+        density = 0.001  # Higher density = smaller box = higher concentration
         volume = num_monomers / density
         box_size = volume ** (1.0/3.0)
         print(f"Calculated box_size from volume formula (N/{density} = {volume}): {box_size:.4f}")
@@ -122,30 +131,41 @@ def create_lammps_rigid_patchy_monomers_script_cpp(
     lammps_input_filename = os.path.join(output_dir, "in.rigid_patchy_monomers")
 
     # --- Atom Type Definitions ---
+    # Back to original 3-body geometry:
+    #   - Three main spheres of radius 1.0 (type 1), each with mass 1.0
+    #   - One patch per monomer (type 2 or 3), essentially massless
     main_body_mass = 1.0
-    patch_mass = 1e-15  # Massless patches (from successful test)
+    patch_mass = 1.0e-3  # Small but non-zero to avoid singular inertia
 
     # --- Rigid Body Relative Positions ---
-    # 3-patch configuration: 3 body spheres + 3 patches (all act as unit)
-    # This was the stable configuration that created dimers without NaNs
-    a = rigid_sphere_radius  # a=1.0
-    b = 0.33  # Patch radius offset
-    c6 = np.cos(np.pi/6)
-    s6 = np.sin(np.pi/6)
+    # Geometry MATCHED to the JAX optimize trajectory (mon_shape1 in optimize.py):
+    #   - Three main spheres (body atoms) at:
+    #       [0, 0, a]
+    #       [0,  a*cos(pi/6), -a*sin(pi/6)]
+    #       [0, -a*cos(pi/6), -a*sin(pi/6)]
+    #   - Three patches at:
+    #       [a, 0, b]
+    #       [a,  b*cos(pi/6), -b*sin(pi/6)]
+    #       [a, -b*cos(pi/6), -b*sin(pi/6)]
+    # where a = 1.0 (body radius) and b = patch_radius = 0.33.
+    a = rigid_sphere_radius
+    b = patch_radius
+    c6 = np.cos(np.pi / 6.0)  # cos(30 deg)
+    s6 = np.sin(np.pi / 6.0)  # sin(30 deg)
 
-    # 3 body spheres arranged in triangle at x=0
+    # Three body spheres
     rigid_body_coords_relative = [
         [0.0, 0.0, a],
-        [0.0, a * c6, -a * s6],
-        [0.0, -a * c6, -a * s6]
+        [0.0,  a * c6, -a * s6],
+        [0.0, -a * c6, -a * s6],
     ]
-    
-    # 3 patches arranged in triangle at x=a (positive x)
-    # All 3 patches act as a single unit (change type together)
+
+    # Three patches on the +x side, identical to optimize.py
+    # (we ignore patch_offset_dist here to keep 1–1 matching with the JAX geometry)
     patch_coords_relative = [
         [a, 0.0, b],
-        [a, b * c6, -b * s6],
-        [a, -b * c6, -b * s6]
+        [a,  b * c6, -b * s6],
+        [a, -b * c6, -b * s6],
     ]
 
     # --- Generate Initial Atom Data ---
@@ -165,11 +185,16 @@ def create_lammps_rigid_patchy_monomers_script_cpp(
     padding_z = max_z_extent + 0.1
     
     # Ensure monomers do not overlap by enforcing minimum COM spacing
-    # With proper repulsion (rep_rmax_body=2.0, rep_A=500), main bodies repel strongly
-    # Patches extend ~1.05 units from COM, so minimum safe distance ≈ 2.0 + 2*1.05 ≈ 4.1
-    # But with strong repulsion, we can use a smaller margin
+    # Approximate collision distance between bodies: 2 * sphere radius.
+    # (3-sphere geometry is anisotropic, but this gives a reasonable isotropic scale.)
+    body_body_collision_distance = 2.0 * rigid_sphere_radius
+    # Total radial extent including patches along the most extended axis.
+    # Use max_x_extent (which already includes +rigid_sphere_radius) as a conservative
+    # estimate for the "radius" of each rigid body, then space COMs by ~2x that.
+    patch_total_extent = max_x_extent
+    # Require COM spacing that keeps both body spheres and patches from overlapping initially
     existing_centers = []
-    min_center_distance = 3.5  # Main bodies repel at 2.0, patches extend ~1.0, so 3.5 is safe
+    min_center_distance = 2.0 * patch_total_extent + 0.5
     max_attempts = 2000
     
     for mol_id in range(1, num_monomers + 1):
@@ -245,7 +270,9 @@ def create_lammps_rigid_patchy_monomers_script_cpp(
             atom_data_lines.append(f"{current_atom_id} {mol_id} 1 {x} {y} {z}")
             current_atom_id += 1
 
-        patch_type = 3 if mol_id == 1 else 2
+        # Initialize ALL patches as type 2; type changes to 3 will be driven
+        # solely by the state_change fix during the dynamics.
+        patch_type = 2
         for patch_coord in patch_coords_relative:
             x = com_x + patch_coord[0]
             y = com_y + patch_coord[1]
@@ -276,23 +303,36 @@ def create_lammps_rigid_patchy_monomers_script_cpp(
 
     print(f"Generated {data_filename}")
 
-    # --- Parameters for LAMMPS built-in potentials (from successful test) ---
-    # Using built-in morse and lj/cut instead of table potentials for better reliability
-    # INCREASED ATTRACTION with type 3-3 being 2x stronger than 2-2
-    # VERY STRONG CLOSE-RANGE ATTRACTION - pulls patches together until they overlap
-    # Patches must overlap (coordination cutoff = 0.34) for state change
-    morse_alpha = 10.0  # Very steep: extremely strong at close range, pulls patches to overlap
-    morse_D0_22 = 500.0  # STRONG: type 2-2 attraction (reduced from 1000.0)
-    morse_D0_33 = 300.0  # MODERATE: type 3-3 attraction (reduced from 500.0, weaker than 2-2)
-    morse_r0 = 0.0  # Minimum at r=0 (patches overlapping)
-    morse_rcut = 4.0  # Same cutoff as before
+    # --- Parameters for potentials ---
+    # Goal: very short-range attraction that only overcomes repulsion when
+    # patches are essentially overlapping, and even then only slightly.
+
+    # Morse patch-patch:
+    #   - center at r0 = 0 (maximum at full overlap)
+    #   - very short cutoff: rcut = 0.33
+    #   - steep alpha so the well is narrow
+    morse_rcut_default = 0.33
+    morse_rcut = patch_interaction_cutoff_morse if patch_interaction_cutoff_morse is not None else morse_rcut_default
+    morse_alpha = 10.0
+    morse_r0 = 0.0
+    # Moderate well depth so that 3 bonds modestly beat repulsion at full overlap
+    morse_D0_22 = morse_D0_22 if morse_D0_22 is not None else 3.0
+    morse_D0_33 = morse_D0_33 if morse_D0_33 is not None else 3.0
+
+    # Body-body repulsion: LJ tuned so minimum is ~at contact (2R),
+    # with epsilon small compared to 3*D0 so that at full patch overlap
+    # the net attraction is dominated by patches, but still providing
+    # a short-range core when patches are not engaged.
+    #   epsilon ≈ 2
+    #   sigma chosen so r_min = 2^(1/6) * sigma ≈ 2R
+    #   cutoff slightly beyond contact for short-range repulsion.
+    rep_epsilon = rep_epsilon if rep_epsilon is not None else 2.0
+    rep_sigma = body_body_collision_distance / (2.0 ** (1.0 / 6.0))
+    rep_rmax_body = body_body_collision_distance + 0.5
     
-    # Repulsive parameters (using lj/cut)
-    # LOWER REPULSION: further reduced from 100.0 to 50.0 for even easier approach
-    rep_epsilon = 50.0  # Further reduced from 100.0 to allow easier approach
-    rep_sigma = 1.0  # LJ sigma parameter
-    rep_rmax_body = 2.0  # Body-body cutoff
-    rep_rmax_patch = 1.3  # Body-patch cutoff (from successful test)
+    # Temperature parameter
+    temp_value = temperature if temperature is not None else 1.0  # Target kT ~ 1
+    init_temp_value = 0.3 * temp_value  # Cold start to minimize initial KE
 
     # --- Write LAMMPS Input Script ---
     lammps_script_content = f"""# LAMMPS Input Script for Rigid Patchy Monomers with State Changes
@@ -315,40 +355,30 @@ change_box      all y scale 1.05 remap
 change_box      all z scale 1.05 remap
 
 # 3. Force Field Parameters
-# Using LAMMPS built-in potentials (morse and lj/cut) for better reliability
-# This matches the successful test simulation configuration
+# Using hybrid/overlay:
+#   - morse for patch-patch attraction (types 2 and 3)
+#   - lj/cut for body-body repulsion (steep, short-ranged)
 pair_style      hybrid/overlay morse {morse_rcut} lj/cut {rep_rmax_body}
-# STRONG ATTRACTION with type 2-2 (500.0) being stronger than 3-3 (300.0)
-# Morse potential for patch-patch: 
-#   - Type 2-2: D0=500.0 (STRONG, stronger than 3-3), alpha=10.0, r0=0.0, rcut=4.0
-#   - Type 3-3: D0=300.0 (MODERATE, weaker than 2-2), alpha=10.0, r0=0.0, rcut=4.0
-# STRONG CLOSE-RANGE ATTRACTION - pulls patches together until they overlap
-# Patches must overlap (coordination cutoff=0.34) for state change
-# Type 2-2: D0=500.0 gives: extremely strong at r=0.0 (-500.0), very strong at r=0.2 (-335.0), strong at r=0.34 (-150.0)
-# Type 3-3: D0=300.0 gives: extremely strong at r=0.0 (-300.0), very strong at r=0.2 (-201.0), strong at r=0.34 (-90.0)
-# This creates a strong pulling force when patches are close, with type 2-2 being stronger than 3-3
-# REPULSION: rep_epsilon=50.0 (further reduced from 100.0) for even easier approach
-pair_coeff      2 2 morse {morse_D0_22} {morse_alpha} {morse_r0} {morse_rcut}
-pair_coeff      3 3 morse {morse_D0_33} {morse_alpha} {morse_r0} {morse_rcut}
-# Lennard-Jones for repulsion: body-body (1-1) and body-patch (1-2, 1-3)
-pair_coeff      1 1 lj/cut {rep_epsilon} {rep_sigma} {rep_rmax_body}
-pair_coeff      1 2 lj/cut {rep_epsilon} {rep_sigma} {rep_rmax_patch}
-pair_coeff      1 3 lj/cut {rep_epsilon} {rep_sigma} {rep_rmax_patch}
-# Set all other combinations to zero (no interaction)
+# First zero all interactions, then override the pairs we actually use.
 pair_coeff      * * morse 0.0 1.0 1.0 1.0
 pair_coeff      * * lj/cut 0.0 1.0 1.0
-# NOTE: NO repulsion for 2-2, 2-3, 3-3 - patches can overlap with attraction dominating
+pair_coeff      2 2 morse {morse_D0_22} {morse_alpha} {morse_r0} {morse_rcut}
+pair_coeff      3 3 morse {morse_D0_33} {morse_alpha} {morse_r0} {morse_rcut}
+# Body-body LJ repulsion only (no body-patch interactions)
+pair_coeff      1 1 lj/cut {rep_epsilon} {rep_sigma:.4f} {rep_rmax_body}
+# NOTE: No body-patch interactions (1-2, 1-3); patches only attract via short-range Morse.
 
 # 4. Rigid Body Definition (temporary, for minimization)
 fix             rigid_temp all rigid molecule
 
 # 5. Simulation Settings
-# Enhanced neighbor list settings for strong attractions
-# Neighbor skin to match rcut (rcut=4.0, so need skin > 4.0)
-neighbor        4.5 bin  # Skin distance to match rcut=4.0
+# Neighbor list tuned to the short-ranged interactions:
+#   - Morse cutoff ~{morse_rcut}
+#   - LJ cutoff ~{rep_rmax_body}
+neighbor        {max(morse_rcut, rep_rmax_body) + 0.5:.2f} bin
 neigh_modify    delay 0 every 1 check yes page 200000 one 20000
 comm_style      brick
-comm_modify     vel yes cutoff 4.5
+comm_modify     vel yes cutoff {max(morse_rcut, rep_rmax_body) + 0.5:.2f}
 
 # 5.5. Minimize (critical for stability with strong attractions)
 # More thorough minimization to eliminate unfavorable configurations (from successful test)
@@ -361,15 +391,17 @@ reset_timestep  0
 unfix           rigid_temp
 
 # 5.8. Initialize velocities
-velocity        all create 0.60 {seed} mom yes rot no
+# Initialize at a lower temperature (init_temp_value) to avoid a hot start;
+# thermostat will then heat/cool towards target temp_value.
+velocity        all create {init_temp_value} {seed} mom yes rot no
 
 # 6. Dynamics
-timestep        {timestep:.6f}  # EXACT: 0.0002 (same as successful case) - avoids NaNs with strong Morse attractions
+timestep        {timestep:.6f}
 
-# 6.5. Create NVT fix with stronger damping for stability
-# INCREASED: Temperature 0.50 (increased from 0.30 for faster dynamics)
-# Increased damping (0.05) helps dissipate excess energy from very strong attractions
-fix             rigid_nvt all rigid/nvt molecule temp 0.60 0.60 0.05
+# 6.5. Rigid-body integrator and thermostat
+# Use fix rigid/nvt with strong (but not extreme) damping to keep temperature
+# near target while allowing some relaxation of torques.
+fix             rigid_nvt all rigid/nvt molecule temp {temp_value} {temp_value} 200.0
 
 # 7. Define groups for patches
 group           patches_A type 2
@@ -409,7 +441,7 @@ print "Simulation finished. Total steps: ${{final_step}}"
 
 if __name__ == "__main__":
     create_lammps_rigid_patchy_monomers_script_cpp(
-        20, None, 1.0, 0.33, 1.0, 1.5, 0.34, 0.7, 500000000, 5000, 100000,  # 20 monomers, patch_interaction_cutoff_morse=1.5, patch_coordination_cutoff=0.34, dump_freq=100000
-        'rigid_patchy_simulation_cpp_2', 12345, 100, 1000, 0.0002  # state_change_freq=100, cooldown=1000, timestep=0.0002 (increased from 0.00005 for faster dynamics)
+        20, None, 2.0, 0.33, 2.0, 0.66, 0.34, 0.7, 500000000, 5000, 100000,  # Example standalone run with updated geometry
+        'rigid_patchy_simulation_cpp_2', 12345, 100, 1000, 0.0002  # state_change_freq=100, cooldown=1000, timestep=0.0002
     )
 
