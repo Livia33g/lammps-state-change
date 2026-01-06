@@ -15,8 +15,8 @@ from datetime import datetime
 def create_lammps_octahedron_script_cpp(
     num_monomers,
     box_size=None,
-    vertex_radius=2.0,
-    patch_radius=0.5,
+    vertex_radius=1.0,  # Body particle radius (matches reference geometry, though now hardcoded to 1.0)
+    patch_radius=0.5,  # Not used - patches have fixed positions from reference
     patch_coordination_cutoff=0.34,
     state_change_probability=0.7,
     timesteps=500000000,
@@ -26,7 +26,8 @@ def create_lammps_octahedron_script_cpp(
     seed=12345,
     state_change_freq=100,
     cooldown_steps=1000,
-    timestep=0.001,
+    hysteresis_threshold=5000,  # New: Number of consecutive steps of contact required before state change
+    timestep=0.0001,  # Further reduced from 0.0002 for stability (prevents NaNs from large forces)
     morse_D0_22=None,  # Morse D0 for type 2-2 interactions
     morse_D0_33=None,  # Morse D0 for type 3-3 interactions
     morse_D0_23=None,  # Morse D0 for type 2-3 interactions (cross-interaction)
@@ -41,10 +42,17 @@ def create_lammps_octahedron_script_cpp(
     # Calculate max extent first (needed for box size calculation)
     # We'll calculate this after building geometry, but set a reasonable default
     if box_size is None:
-        # Use density formula similar to JAX code: box = (300 / 0.001) ** (1 / 3)
-        density = 0.001
+        # INCREASED DENSITY for better cluster formation (collision frequency ∝ [concentration]²)
+        # Previous: 0.0005 (too sparse, particles spend too much time in void)
+        # New: 0.005 (10x increase for better collision rate, still safe for stability)
+        density = 0.005  # Increased from 0.0005 for better cluster formation
         volume = num_monomers / density
         box_size = volume ** (1.0/3.0)
+    
+    # REDUCED box multiplier for higher effective concentration
+    # Previous: 3.5x (too large, particles too spread out)
+    # New: 2.0x (higher collision frequency for cluster formation)
+    box_size = box_size * 2.0
     
     # Store original box_size for later validation
     original_box_size = box_size
@@ -57,60 +65,48 @@ def create_lammps_octahedron_script_cpp(
 
     # --- Atom Type Definitions ---
     # Type 1: Vertex centers (body particles)
-    # Type 2: Patch type A (can change to type 3)
-    # Type 3: Patch type B (can change to type 2)
-    vertex_mass = 0.5  # From JAX code: [0.5, 1e-8, 1e-8, 1e-8, 1e-8]
-    patch_mass = 1.0e-8  # Small but non-zero
+    # Types 2–5: Patch types (can change state via custom fix)
+    #
+    # CRITICAL PHYSICS: Mass ≠ Size in LAMMPS
+    # - Mass (m): Determines inertia and rotational stability (F=ma, I=Σm_i*r_i^2)
+    # - Diameter/Potential (σ): Determines collision/overlap behavior
+    # - Patches interact ONLY via Morse potential (soft, allows overlap regardless of mass)
+    # - There is NO patch-patch LJ repulsion, so patches can overlap freely
+    #
+    # Mass Configuration for Rotational Stability:
+    # - Body mass: 0.6 (provides base rotational inertia)
+    # - Patch mass: 0.1 each (4 patches × 0.1 = 0.4 total)
+    # - Total mass per monomer: 0.6 + 0.4 = 1.0
+    # - This creates high moment of inertia (I = Σ m_i * r_i^2) for stable rotation
+    # - Patches act as "flywheel" weights at distance ~2.0 from COM
+    #
+    # Overlap Behavior:
+    # - Patches are point particles with NO finite-size repulsion
+    # - Only Morse attraction between different patch types
+    # - Heavy patches can still overlap because mass doesn't prevent it - only repulsion does
+    # - Attracting patches will "sink into" each other creating deep energy wells
+    vertex_mass = 0.6        # Body particle mass
+    patch_mass = 0.1         # Patch mass (4 patches × 0.1 = 0.4 total, for rotational stability)
 
     # --- Monomer Geometry ---
-    # Each monomer = 1 vertex (body particle) + 4 patches = 5 particles total
-    # The full octahedron is formed by assembling 6 such monomers
-    # 
-    # From JAX code structure:
-    # - Each vertex has 1 body particle at the vertex center
-    # - 4 patches positioned around the vertex, pointing toward nearest neighbors
-    # - The patches are positioned at vertex_radius (2.0) inward from the vertex
-    
-    # For a single monomer (vertex), the body particle is at the origin (COM)
-    # Patches are positioned relative to the body/vertex
-    
-    # Get patch positions for a vertex monomer
-    # Patches point toward the 4 nearest neighbors (other octahedron vertices)
-    # For an octahedron, each vertex has 4 neighbors
-    
-    # Octahedron vertex positions (for reference - to calculate patch directions)
-    scale = (2.0 / np.sqrt(2.0)) * vertex_radius
-    octahedron_vertex_vectors = np.array([
-        [1.0, 0.0, 0.0],
-        [-1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        [0.0, -1.0, 0.0],
-        [0.0, 0.0, 1.0],
-        [0.0, 0.0, -1.0],
-    ])
-    octahedron_vertex_positions = scale * octahedron_vertex_vectors
-    
-    # For a generic monomer, we'll position patches to point toward 4 neighbor directions
-    # Use the first vertex as reference: its neighbors are vertices 2, 3, 4, 5 (indices 1, 2, 3, 4)
-    reference_vertex_pos = octahedron_vertex_positions[0]  # [1, 0, 0] scaled
-    neighbor_positions = octahedron_vertex_positions[1:5]  # 4 nearest neighbors
+    # Each monomer = 1 body particle + 4 patches = 5 particles total
+    # Geometry matches reference files in octahedron_shape/:
+    # - Body particle: at origin, mass = 1.0
+    # - 4 patches: at distance 2.0 from center, mass = 1e-08
+    # Interaction radii: body = 1.5, patch = 0.33 (for repulsion interactions)
     
     # Build rigid body structure for one monomer
     # Body particle is at origin (COM)
     rigid_body_coords_relative = [[0.0, 0.0, 0.0]]  # Single body particle at COM
     
-    # 4 patches positioned around the body, pointing toward neighbors
-    patch_coords_relative = []
-    for neighbor_pos in neighbor_positions:
-        # Vector from body to neighbor
-        vec_to_neighbor = neighbor_pos - reference_vertex_pos
-        vec_norm = np.linalg.norm(vec_to_neighbor)
-        if vec_norm > 1e-6:
-            vec_to_neighbor_unit = vec_to_neighbor / vec_norm
-            # Patch position is vertex_radius inward from body (toward neighbors)
-            # Patches should point outward from the body, but be positioned slightly inward
-            patch_pos = -vertex_radius * vec_to_neighbor_unit  # Negative because patches point toward center
-            patch_coords_relative.append(patch_pos.tolist())
+    # 4 patches positioned at distance 2.0 from center
+    # Patch positions from reference geometry (vertex_shape_points.npy):
+    patch_coords_relative = [
+        [-1.41421356,  1.39285561,  0.24485356],  # Patch 1: distance = 2.0
+        [-1.41421356, -1.39285560, -0.24485356],  # Patch 2: distance = 2.0
+        [-1.41421356,  0.24485356, -1.39285561],  # Patch 3: distance = 2.0
+        [-1.41421356, -0.24485356,  1.39285560],  # Patch 4: distance = 2.0
+    ]
     
     # --- Generate Initial Atom Data ---
     atom_data_lines = []
@@ -119,20 +115,22 @@ def create_lammps_octahedron_script_cpp(
     np.random.seed(seed)
 
     # Calculate max extent for placement
+    # Patches are at distance 2.0 from center
+    # Use body interaction radius = 1.5 for placement calculations
     all_coords = rigid_body_coords_relative + patch_coords_relative
-    max_extent = max([np.linalg.norm(c) for c in all_coords]) + vertex_radius
+    max_extent = max([np.linalg.norm(c) for c in all_coords]) + 1.5  # Use body radius for extent
     padding = max_extent + 0.5
     
     # Minimum distance between monomer centers
-    # Use a smaller multiplier - 1.5x instead of 2.0x for better packing
-    min_center_distance = 1.5 * max_extent + 0.5
+    # LARGER SPACING: Make monomers more dispersed to reduce bond breaking
+    min_center_distance = 3.0 * max_extent + 1.0  # Increased from 1.5x to 3.0x for much more dispersion
     
     # Calculate minimum box size needed for num_monomers
     # For N monomers, we need space for N monomers with min_center_distance spacing
     # Rough estimate: box should be large enough for a 3D grid of monomers
     # Using a simple scaling: each monomer needs ~min_center_distance^3 of volume
     min_volume_per_monomer = min_center_distance ** 3
-    min_total_volume = num_monomers * min_volume_per_monomer * 1.5  # 1.5x for safety
+    min_total_volume = num_monomers * min_volume_per_monomer * 3.0  # 3.0x for much larger box (more dispersed)
     min_box_size_from_volume = (min_total_volume) ** (1.0/3.0)
     
     # Also ensure minimum for at least 2 monomers at edges
@@ -245,21 +243,25 @@ def create_lammps_octahedron_script_cpp(
         x = com_x + rel_coord[0]
         y = com_y + rel_coord[1]
         z = com_z + rel_coord[2]
+        # For atom_style molecular: format is id mol type x y z
+        # Diameter will be set via 'set' command in input script
         atom_data_lines.append(f"{current_atom_id} {mol_id} 1 {x} {y} {z}")
         current_atom_id += 1
 
-        # Add patches - ALL start as type 2 (user's "patch type 1", will change to 3/4/5 during simulation)
+        # Add patches - ALL start as type 2 (all patches on monomer are same type)
         # Note: We use type 2 in LAMMPS because type 1 is used for vertices (body particles)
         # The fix will treat type 2 as the initial patch type ("patch type 1")
+        # All 4 patches on a monomer start as type 2 and change together as a unit
         for i in range(len(patch_coords_relative)):
             patch_coord = patch_coords_relative[i]
             x = com_x + patch_coord[0]
             y = com_y + patch_coord[1]
             z = com_z + patch_coord[2]
             
-            # All patches start as type 2 (initial "patch type 1", state changes will change to 3, 4, or 5)
+            # All patches start as type 2 (all patches on monomer start same, state changes change to 3, 4, or 5 together)
             patch_type = 2
-            
+            # For atom_style molecular: format is id mol type x y z
+            # Diameter will be set via 'set' command in input script
             atom_data_lines.append(f"{current_atom_id} {mol_id} {patch_type} {x} {y} {z}")
             current_atom_id += 1
 
@@ -276,7 +278,7 @@ def create_lammps_octahedron_script_cpp(
         f.write(f"0.0 {box_size} zlo zhi\n\n")
 
         f.write("Masses\n\n")
-        f.write(f"1 {vertex_mass}\n")  # Type 1: vertices (body particles)
+        f.write(f"1 {vertex_mass}\n")  # Type 1: body (central particle)
         f.write(f"2 {patch_mass}\n")   # Type 2: patches (initial "patch type 1")
         f.write(f"3 {patch_mass}\n")   # Type 3: patches (evolved state)
         f.write(f"4 {patch_mass}\n")   # Type 4: patches (evolved state)
@@ -291,34 +293,54 @@ def create_lammps_octahedron_script_cpp(
     print(f"Total atoms: {num_atoms}, Atoms per monomer: {num_atoms // num_monomers}")
 
     # --- Parameters for potentials ---
-    # All patch-patch interactions are attractive with similar epsilon values
-    morse_rcut = morse_cutoff if morse_cutoff is not None else 4.0
-    morse_alpha = 2.0  # From JAX code
-    morse_r0 = 0.0
+    # STABILITY FIXES: Increased cutoff for better capture, decreased alpha for wider well
+    # morse_rcut: Increased from 1.2 to 2.5 - acts like a funnel, guiding patches in from further away
+    # morse_alpha: Decreased from 2.0 to 1.2 - widens the attractive basin, making bonds more forgiving
+    morse_rcut = morse_cutoff if morse_cutoff is not None else 2.5  # Increased from 1.2 for better capture radius
+    morse_alpha = 1.2  # Decreased from 2.0 to widen the well (was 2.0 from JAX code)
+    morse_r0 = 0.0  # Allows deep overlap for stable bonding
     
-    # Base epsilon for patch-patch attractions (all similar, varying by ~0.5-1.0)
-    base_epsilon = 10.0
-    morse_D0_11 = base_epsilon  # Type 1-1
-    morse_D0_13 = base_epsilon + 0.5  # Type 1-3
-    morse_D0_14 = base_epsilon + 0.3  # Type 1-4
-    morse_D0_15 = base_epsilon + 0.7  # Type 1-5
-    morse_D0_33 = base_epsilon + 1.0  # Type 3-3
-    morse_D0_34 = base_epsilon + 0.6  # Type 3-4
-    morse_D0_35 = base_epsilon + 0.2  # Type 3-5
-    morse_D0_44 = base_epsilon + 0.8  # Type 4-4
-    morse_D0_45 = base_epsilon + 0.4  # Type 4-5
-    morse_D0_55 = base_epsilon + 0.9  # Type 5-5
+    # Base epsilon for patch-patch attractions (ONLY for different types)
+    # Same-type patches (3-3, 4-4, 5-5) have NO interaction (no attraction, no repulsion)
+    # BOOSTED from 3.0 to 5.0 to increase bond strength and sticking probability
+    base_epsilon = 5.0
+    morse_D0_11 = base_epsilon  # Type 1-1 (initial state) - can attract to itself
+    morse_D0_13 = base_epsilon + 0.5  # Type 1-3 (different types - attraction)
+    morse_D0_14 = base_epsilon + 0.3  # Type 1-4 (different types - attraction)
+    morse_D0_15 = base_epsilon + 0.7  # Type 1-5 (different types - attraction)
+    # Same-type patches have NO interaction
+    morse_D0_33 = 0.0  # Type 3-3 - NO interaction (no attraction, no repulsion)
+    morse_D0_34 = base_epsilon + 0.6  # Type 3-4 (different types - attraction)
+    morse_D0_35 = base_epsilon + 0.2  # Type 3-5 (different types - attraction)
+    morse_D0_44 = 0.0  # Type 4-4 - NO interaction (no attraction, no repulsion)
+    morse_D0_45 = base_epsilon + 0.4  # Type 4-5 (different types - attraction)
+    morse_D0_55 = 0.0  # Type 5-5 - NO interaction (no attraction, no repulsion)
     
-    # Body-body repulsion
-    rep_epsilon = rep_epsilon if rep_epsilon is not None else 10000.0
-    rep_sigma = 2.0 * vertex_radius  # Contact distance
-    rep_rmax_body = rep_sigma + 1.0
+    # Body-body repulsion - use softer parameters to match JAX soft_sphere behavior
+    # Body interaction radius = 1.5 (for repulsion sigma), patch radius = 0.5 (user: 0.33 or 0.5 both work)
+    body_radius = 1.5  # Interaction radius for body particles
+    patch_radius = 0.5  # Interaction radius for patch particles (0.33 or 0.5 both work)
+    # Body-body repulsion strength - MATCH JAX MD soft_eps=10000.0 style
+    # JAX uses soft_eps=10000.0 to prevent unwanted large clusterization
+    # We use 5000.0 as a balance (stronger than 800.0 but not as extreme as 10000)
+    # Strong repulsion ensures bodies bounce apart, preventing large unwanted clusters
+    rep_epsilon = rep_epsilon if rep_epsilon is not None else 5000.0  # Increased from 800.0 to match JAX-style strong repulsion
+    rep_sigma = 2.0 * body_radius  # Contact distance = 3.0 (2 * 1.5)
+    # VERY SHORT RANGE: Almost only when touching
+    rep_rmax_body = 1.1 * rep_sigma  # Very short range (3.3 instead of 4.5) - almost only when touching
     
-    # Temperature
-    temp_value = temperature if temperature is not None else 1.0
-    init_temp_value = 0.3 * temp_value
+    # Body-patch repulsion parameters (much weaker, short range)
+    # Body radius = 1.5, patch radius = 0.33
+    body_patch_sigma = body_radius + patch_radius  # Contact distance ~1.83 (body radius + patch radius)
+    body_patch_rmax = 1.1 * body_patch_sigma  # Very short range (~2.0 instead of ~2.75) - almost only when touching
+    body_patch_epsilon = rep_epsilon * 0.05  # Reduced from 0.1 to 0.05
+    
+    # Temperature (REDUCED for stability - working sims use 0.3)
+    temp_value = temperature if temperature is not None else 0.3  # Reduced from 1.0 to 0.3
+    init_temp_value = temp_value  # Use same temp as initial (not 0.3*temp)
 
     # --- Write LAMMPS Input Script ---
+    
     lammps_script_content = f"""# LAMMPS Input Script for Rigid Octahedron Monomers with State Changes
 # Generated by Python script on {datetime.now().isoformat(timespec='seconds')}
 # Uses custom C++ fix_state_change (NO unfix/refix required!)
@@ -333,78 +355,114 @@ newton          on
 # 2. Atom Definition
 read_data       data.octahedron_monomers
 
-# 2.5. Expand box by 5% and remap atoms
-change_box      all x scale 1.05 remap
-change_box      all y scale 1.05 remap
-change_box      all z scale 1.05 remap
+# 2.1. Moment of inertia for rigid bodies is calculated automatically by LAMMPS
+# from atom positions and masses relative to center of mass: I = Σ m_i * r_i^2
+# No need to set diameters - atom_style molecular doesn't support it anyway
+# Heavy rotational damping (angmom 100.0) and zero initial rotation (rot no) 
+# will minimize rotation regardless of moment of inertia
+
+# 2.5. Expand box by 20% and remap atoms (larger expansion for stability, prevents NaNs)
+change_box      all x scale 1.20 remap
+change_box      all y scale 1.20 remap
+change_box      all z scale 1.20 remap
 
 # 3. Force Field Parameters
-# Using hybrid/overlay: morse for patch-patch, lj/cut for body-body repulsion
+# Using hybrid/overlay: morse for patch-patch, lj/cut (WCA-style) for body-body repulsion
 pair_style      hybrid/overlay morse {morse_rcut} lj/cut {rep_rmax_body}
 
 # Initialize all interactions to zero
 pair_coeff      * * morse 0.0 1.0 1.0 1.0
 pair_coeff      * * lj/cut 0.0 1.0 1.0
 
-# Patch-patch Morse attractions (all pairs can attract)
+# Patch-patch interactions: ONLY Morse potential (NO LJ repulsion)
+# CRITICAL: Patches have NO finite-size repulsion, so they can overlap freely
+# Mass doesn't prevent overlap - only repulsion does. Heavy patches (mass=0.1) can still overlap.
+# Morse potential is soft and allows deep overlap for stable bonding.
 # Type 2 (initial patches, user's "patch type 1") interactions
 pair_coeff      2 2 morse {morse_D0_11} {morse_alpha} {morse_r0} {morse_rcut}
-pair_coeff      2 3 morse {morse_D0_13} {morse_alpha} {morse_r0} {morse_rcut}
-pair_coeff      2 4 morse {morse_D0_14} {morse_alpha} {morse_r0} {morse_rcut}
-pair_coeff      2 5 morse {morse_D0_15} {morse_alpha} {morse_r0} {morse_rcut}
+pair_coeff      2 3 morse {morse_D0_13} {morse_alpha} {morse_r0} {morse_rcut}  # Different types - attraction
+pair_coeff      2 4 morse {morse_D0_14} {morse_alpha} {morse_r0} {morse_rcut}  # Different types - attraction
+pair_coeff      2 5 morse {morse_D0_15} {morse_alpha} {morse_r0} {morse_rcut}  # Different types - attraction
 # Type 3 interactions
-pair_coeff      3 3 morse {morse_D0_33} {morse_alpha} {morse_r0} {morse_rcut}
-pair_coeff      3 4 morse {morse_D0_34} {morse_alpha} {morse_r0} {morse_rcut}
-pair_coeff      3 5 morse {morse_D0_35} {morse_alpha} {morse_r0} {morse_rcut}
+# Same-type (3-3) has NO interaction (no attraction, no repulsion)
+pair_coeff      3 3 morse 0.0 {morse_alpha} {morse_r0} {morse_rcut}  # No interaction
+pair_coeff      3 4 morse {morse_D0_34} {morse_alpha} {morse_r0} {morse_rcut}  # Different types - attraction
+pair_coeff      3 5 morse {morse_D0_35} {morse_alpha} {morse_r0} {morse_rcut}  # Different types - attraction
 # Type 4 interactions
-pair_coeff      4 4 morse {morse_D0_44} {morse_alpha} {morse_r0} {morse_rcut}
-pair_coeff      4 5 morse {morse_D0_45} {morse_alpha} {morse_r0} {morse_rcut}
+# Same-type (4-4) has NO interaction (no attraction, no repulsion)
+pair_coeff      4 4 morse 0.0 {morse_alpha} {morse_r0} {morse_rcut}  # No interaction
+pair_coeff      4 5 morse {morse_D0_45} {morse_alpha} {morse_r0} {morse_rcut}  # Different types - attraction
 # Type 5 interactions
-pair_coeff      5 5 morse {morse_D0_55} {morse_alpha} {morse_r0} {morse_rcut}
+# Same-type (5-5) has NO interaction (no attraction, no repulsion)
+pair_coeff      5 5 morse 0.0 {morse_alpha} {morse_r0} {morse_rcut}  # No interaction
+# NOTE: There is NO patch-patch LJ/cut interaction, so patches have zero repulsion and can overlap
 
-# Body-body LJ repulsion (only vertex-vertex, type 1)
-pair_coeff      1 1 lj/cut {rep_epsilon} {rep_sigma:.4f} {rep_rmax_body}
+# Body-body WCA repulsion (LJ cut at minimum, prevents NaNs)
+# WCA: repulsive only, cut at r = 2^(1/6) * sigma
+pair_coeff      1 1 lj/cut {rep_epsilon} {rep_sigma:.4f} {rep_rmax_body:.4f}
 
-# Body-patch repulsion (weaker, between vertices and patches)
-pair_coeff      1 2 lj/cut {rep_epsilon * 0.1} {rep_sigma * 0.8:.4f} {rep_rmax_body * 0.8}
-pair_coeff      1 3 lj/cut {rep_epsilon * 0.1} {rep_sigma * 0.8:.4f} {rep_rmax_body * 0.8}
-pair_coeff      1 4 lj/cut {rep_epsilon * 0.1} {rep_sigma * 0.8:.4f} {rep_rmax_body * 0.8}
-pair_coeff      1 5 lj/cut {rep_epsilon * 0.1} {rep_sigma * 0.8:.4f} {rep_rmax_body * 0.8}
+# Body-patch WCA repulsion (weaker, smaller sigma)
+pair_coeff      1 2 lj/cut {body_patch_epsilon} {body_patch_sigma:.4f} {body_patch_rmax:.4f}
+pair_coeff      1 3 lj/cut {body_patch_epsilon} {body_patch_sigma:.4f} {body_patch_rmax:.4f}
+pair_coeff      1 4 lj/cut {body_patch_epsilon} {body_patch_sigma:.4f} {body_patch_rmax:.4f}
+pair_coeff      1 5 lj/cut {body_patch_epsilon} {body_patch_sigma:.4f} {body_patch_rmax:.4f}
 
-# 4. Rigid Body Definition (temporary, for minimization)
-fix             rigid_temp all rigid molecule
-
-# 5. Simulation Settings
+# 4. Simulation Settings (NO MINIMIZATION - LAMMPS doesn't support minimization with rigid bodies)
+# Skipping minimization prevents patches from collapsing during energy minimization
+# The initial configuration from data file is already correct
 neighbor        {max(morse_rcut, rep_rmax_body) + 0.5:.2f} bin
 neigh_modify    delay 0 every 1 check yes page 200000 one 20000
 comm_style      brick
 comm_modify     vel yes cutoff {max(morse_rcut, rep_rmax_body) + 0.5:.2f}
 
-# 5.5. Minimize
-minimize        1.0e-4 1.0e-6 100 1000
+# 5. Initialize velocities at VERY LOW temperature for gentle start (prevents NaNs from overlaps)
+# Start at 0.01 temperature to gently relax any overlaps before ramping up
+# rot no = NO rotational velocity - monomers move translationally only (like point particles)
+velocity        all create 0.01 {seed} mom yes rot no
 
-# 5.6. Reset timestep
-reset_timestep  0
+# 5.5. Use smaller timestep initially for stability (prevents NaNs from large forces)
+timestep        0.000050
 
-# 5.7. Remove temporary rigid fix
-unfix           rigid_temp
+# 6. Rigid-body integrator and thermostat - START AT VERY LOW TEMPERATURE
+# Use rigid/nvt/small so both translation and rotation are thermostatted.
+# Mass configuration: Body (0.6) + Patches (0.1 each) = 1.0 total per monomer
+# This provides rotational stability through high moment of inertia (I = Σ m_i * r_i^2)
+# Patches can still overlap because they interact only via Morse (soft, no repulsion)
+# Tdamp=1.0 provides strong "shock absorber" to instantly absorb energy spikes from state changes
+# This prevents spinning when strong Morse attractions (D0≈3.5) create sudden energy drops
+# Start at 0.01 temperature to gently relax overlaps, then ramp up.
+fix             rigid_nvt_equil all rigid/nvt/small molecule temp 0.01 0.01 1.0
 
-# 5.8. Initialize velocities
-velocity        all create {init_temp_value} {seed} mom yes rot no
+# 6.5. Gentle equilibration run (10000 steps at low T to relax overlaps)
+# This prevents NaNs from initial overlaps without using minimization
+run             10000
 
-# 6. Dynamics
+# 6.6. Ramp up temperature gradually (prevents sudden force spikes)
+# MUST unfix the equilibration fix before adding the ramp fix
+# Tdamp=1.0 for strong energy absorption during state changes
+unfix           rigid_nvt_equil
+fix             rigid_nvt_ramp all rigid/nvt/small molecule temp 0.01 {temp_value} 1.0
+run             20000
+
+# 6.7. Now run at target temperature
+# Tdamp=1.0 provides strong "shock absorber" to instantly absorb energy spikes from state changes
+# When patches change state (e.g., Type 2→3), strong Morse attraction (D0≈3.5) creates huge energy drop
+# This converts to kinetic energy → angular velocity (spin). Strong thermostat (Tdamp=1.0) immediately
+# applies drag to remove excess KE, preventing runaway rotation. Patches bond smoothly without spinning.
+unfix           rigid_nvt_ramp
+fix             rigid_nvt all rigid/nvt/small molecule temp {temp_value} {temp_value} 1.0
+
+# 6.8. Increase timestep to normal value after equilibration
 timestep        {timestep:.6f}
-
-# 6.5. Rigid-body integrator and thermostat
-fix             rigid_nvt all rigid/nvt molecule temp {temp_value} {temp_value} 200.0
 
 # 7. Define group for all patches (types 2, 3, 4, 5)
 group           patches type 2 3 4 5
 
 # 8. Add state change fix (C++ fix - NO unfix/refix needed!)
-# Syntax: fix ID group state/change/octahedron check_every cooldown_steps probability cutoff group_patches
+# Syntax: fix ID group state/change/octahedron check_every cooldown_steps probability cutoff group_patches [hysteresis_threshold]
 # Note: Type 2 = initial "patch type 1", Types 3,4,5 = evolved states
-fix             state_change all state/change/octahedron {state_change_freq} {cooldown_steps} {state_change_probability} {patch_coordination_cutoff} patches
+# Hysteresis: Requires consecutive contact for hysteresis_threshold steps before triggering state change (filters noise)
+fix             state_change all state/change/octahedron {state_change_freq} {cooldown_steps} {state_change_probability} {patch_coordination_cutoff} patches {hysteresis_threshold}
 
 # 10. Output
 thermo          {thermo_freq}
@@ -444,7 +502,7 @@ if __name__ == "__main__":
         seed=12345,
         state_change_freq=100,
         cooldown_steps=1000,
-        timestep=0.001,
+        timestep=0.0002,  # Further reduced for stability
         morse_D0_22=10.0,
         morse_D0_33=10.0,
         morse_D0_23=0.0,

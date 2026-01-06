@@ -27,7 +27,8 @@ module purge
 module load gcc/11.4.0 2>/dev/null || echo "⚠️  gcc module not available"
 module load openmpi/4.1.6 2>/dev/null || echo "⚠️  openmpi module not available"
 # Load libfabric (required by LAMMPS binary that was built with MPI)
-module load libfabric/1.22.0 2>/dev/null || echo "⚠️  libfabric module not available"
+# CRITICAL: libfabric must load successfully or LAMMPS will fail with "libfabric.so.1: cannot open shared object file"
+module load libfabric/1.22.0 || { echo "❌ ERROR: Failed to load libfabric/1.22.0"; exit 1; }
 
 set +u
 source /u/lguttieres/miniforge3/bin/activate
@@ -59,26 +60,27 @@ sys.path.insert(0, '$SLURM_SUBMIT_DIR/octahedron')
 from generate_octahedron_cpp import create_lammps_octahedron_script_cpp
 
 create_lammps_octahedron_script_cpp(
-    num_monomers=20,  # Number of octahedron monomers (reduced for easier placement and faster testing)
+    num_monomers=50,  # Number of octahedron monomers (increased for better cluster formation)
     box_size=None,  # Auto-calculate from density
-    vertex_radius=2.0,  # Vertex sphere radius
+    vertex_radius=1.0,  # Body particle radius (matches reference geometry)
     patch_radius=0.5,  # Patch sphere radius (for visualization/planning)
     patch_coordination_cutoff=0.34,  # Tight cutoff for state change detection
-    state_change_probability=0.7,  # 70% probability when conditions met
+    state_change_probability=0.25,  # INCREASED: 25% probability when conditions met (was 0.1, increased to allow more state changes while keeping anti-sync protection)
     timesteps=500000000,  # Total simulation steps
     thermo_freq=5000,  # Thermodynamic output frequency
-    dump_freq=10000,  # Trajectory dump frequency
+    dump_freq=1000,  # Trajectory dump frequency (reduced from 10000 for smoother video - 10x more frames)
     output_dir='$SIM_DIR',
     seed=12345,
-    state_change_freq=100,  # Check state changes every 100 steps
-    cooldown_steps=1000,  # Cooldown period between state changes
-    timestep=0.001,  # Simulation timestep
+    state_change_freq=10,  # REDUCED: Check state changes every 10 steps for almost dynamic/asynchronous behavior (was 100, reduced for more responsive state changes)
+    cooldown_steps=10000,  # Cooldown period between state changes (prevents rapid cascades, randomized 0.5x-1.5x in code)
+    hysteresis_threshold=75,  # REDUCED: Require 75 consecutive steps of contact before state change (was 200, reduced to allow more state changes while still filtering noise)
+    timestep=0.0001,  # Simulation timestep (further reduced for stability, prevents NaNs)
     morse_D0_22=10.0,  # Morse well depth for type 2-2 interactions
     morse_D0_33=10.0,  # Morse well depth for type 3-3 interactions
     morse_D0_23=0.0,  # No cross-interaction between 2-3
-    rep_epsilon=10000.0,  # Repulsion strength for body-body
-    temperature=1.0,  # Simulation temperature
-    morse_cutoff=4.0  # Morse potential cutoff
+    rep_epsilon=5000.0,  # Repulsion strength for body-body (INCREASED to match JAX soft_eps=10000 style, prevents unwanted large clusters)
+    temperature=0.3,  # Simulation temperature (reduced for stability)
+    morse_cutoff=2.5  # Morse potential cutoff (INCREASED for better capture radius, stability fix)
 )
 "
     echo "✅ Input generation complete."

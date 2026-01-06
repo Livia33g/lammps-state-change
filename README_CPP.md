@@ -30,11 +30,16 @@ The C++ implementation (`fix_state_change`) provides a more robust and efficient
 
 ### 1. Install the C++ Fix in LAMMPS
 
-See `fix_state_change/INSTALL_STEP_BY_STEP.md` for detailed instructions. Summary:
+**For rebuilding with ALL fixes (dimer, octahedron, ksat):** See `REBUILD_INSTRUCTIONS.md` for complete instructions.
 
-1. Copy `fix_state_change.cpp` and `fix_state_change.h` to your LAMMPS `src/` directory
-2. Add `fix_state_change.cpp` to the Makefile
-3. Rebuild LAMMPS: `make mpi`
+**Quick summary (single fix):** See `fix_state_change/INSTALL_STEP_BY_STEP.md` for detailed instructions.
+
+**Recommended approach - Interactive compute node:**
+1. SSH to an interactive node: `ssh gpuA`
+2. Copy fix files to LAMMPS `src/` directory
+3. Rebuild LAMMPS: `make mpi -j 4`
+
+**Important:** Always rebuild on an interactive compute node (not login node) to ensure MPI compilers are available.
 
 ### 2. Generate Input Files
 

@@ -1,152 +1,327 @@
-# Octahedron Monomers with State Changes
+# Octahedron Monomers with State Changes - Complete Guide
 
-This directory contains LAMMPS simulation scripts for rigid octahedron monomers with dynamic state changes using the custom C++ `fix_state_change`.
+This directory contains LAMMPS simulation scripts for rigid octahedron monomers with dynamic state changes using the custom C++ `fix_state_change/octahedron`.
 
 ## Overview
 
 The octahedron monomers have:
-- **1 body (vertex)**: Single body particle (type 1) - this monomer represents one vertex of the octahedron
-- **4 patches**: Patches positioned around the body (types 2 initially, can evolve to 3, 4, or 5)
+- **1 body particle** (type 1): Central repulsive core
+- **4 patches** (types 2-5): Attractive patches positioned around the body
 - **Total**: 5 particles per monomer (1 body + 4 patches)
 
-The full octahedron structure is formed by assembling 6 such monomers:
-- Each monomer = 1 vertex of the octahedron
-- 6 monomers × 5 particles = 30 total particles in a complete octahedron
+**Key Physics Principle**: In LAMMPS, **Mass ≠ Size**. Patches can have mass for rotational stability while still allowing overlap (no repulsion between patches).
 
-The structure matches the JAX MD implementation:
-- Each monomer has 1 body particle at its center (COM)
-- 4 patches are positioned around the body, pointing toward nearest neighbors
-- All 4 patches in a monomer are always the same type (change together as a unit)
+## The "Holy Trinity" of Stable State Change Simulations
 
-## State Change Mechanism
+All state change simulations require three critical components:
 
-Uses the same C++ `fix_state_change` as the rigid patchy simulation:
-- Patches of type 2 can change to type 3 when coordinated (within cutoff)
-- Patches of type 3 can change to type 2 when coordinated (within cutoff)
-- Only occurs when patches are in coordination (cutoff = 0.34)
-- Probabilistic with cooldown period to prevent rapid toggling
+### 1. Memory Safety (MPI Communication)
+**Problem**: Ghost atoms on different processors carry garbage memory, causing phantom state changes.
 
-## Files
+**Solution**: Set `comm_forward = 3` in the fix constructor to properly transmit:
+- `last_change` (timestep of last state change)
+- `effective_type` (current effective type)
+- `prev_coord` (previous coordination number)
 
-- `generate_octahedron_cpp.py` - Python script to generate LAMMPS input files
-- `submit_octahedron.slurm` - SLURM submission script
-- `octahedron_simulation_cpp/` - Output directory (created on first run)
+**Code Location**: `fix_state_change_octahedron.cpp` constructor
+```cpp
+comm_forward = 3;  // Must match number of values in pack_forward_comm
+```
+
+### 2. Physical Stability (Rotation & Energy)
+**Problem**: Light patches cause infinite spin (moment of inertia → 0).
+
+**Solution**: 
+- **Mass Distribution**: Body = 0.6, Patches = 0.1 each (total = 1.0)
+- **Strong Damping**: `Tdamp = 1.0` (smaller = stronger damping)
+- **Wide Wells**: `morse_alpha = 1.2` (wider, more forgiving bonds)
+
+**Why It Works**: Heavy patches create high moment of inertia (I = Σ m_i × r_i²), preventing wild rotation. Mass doesn't prevent overlap - only repulsion does.
+
+### 3. Kinetic Control (Reaction Rate)
+**Problem**: High probability + frequent checks = explosive cascades ("flash mob" effect).
+
+**Solution**:
+- **Low Probability**: `probability = 0.05` (5% chance, not 70%)
+- **Slow Checking**: `check_every = 5000` steps (not 100)
+- **Long Cooldown**: `cooldown_steps = 10000` (not 1000)
+
+**Why It Works**: System has time to relax between state changes. Each contact is a "suggestion" that's ignored 95% of the time.
+
+## State Change Logic
+
+### Monochromatic Rule
+**All patches in a monomer must have the same type** (enforced by consistency sweep).
+
+**Implementation**:
+1. **Trigger Phase**: Each patch is checked independently for contacts
+2. **Update Phase**: If one patch triggers, ALL patches in that molecule change together
+3. **Consistency Sweep**: After state changes, check all molecules (including ghosts) and enforce monochromatic rule
+
+### State Change Rules
+- **Type 1 (initial) → Types 3/4/5**: When patch touches ANY other patch
+- **Types 3/4/5 → Types 3/4/5**: When patch touches SAME type (symmetry breaking via probability)
+
+## Critical Fixes Implemented
+
+### Fix 1: MPI Consistency Sweep
+**Location**: `check_and_change()` function, end of function
+
+Prevents "fruit salad" monomers (mixed colors) caused by MPI split-brain:
+- Checks all atoms including ghosts
+- Finds most recent state change per molecule
+- Forces all patches to match newest type
+
+### Fix 2: Atom-Based Triggering
+**Location**: `check_and_change()` function, scan loop
+
+Each patch is evaluated independently for contacts, but changes are applied to the whole molecule.
+
+### Fix 3: Communication Setup
+**Location**: Constructor and `pack_forward_comm`/`unpack_forward_comm`
+
+Ensures ghost atoms receive correct memory:
+```cpp
+// Constructor
+comm_forward = 3;
+
+// pack_forward_comm - must send in same order as unpack
+buf[m++] = static_cast<double>(last_change[j]);
+buf[m++] = static_cast<double>(effective_type[j]);
+buf[m++] = prev_coord[j];
+```
+
+## Common Issues and Solutions
+
+### Issue 1: NaNs (Not a Number)
+**Symptoms**: Simulation crashes with NaN values in energy/forces
+
+**Causes & Solutions**:
+1. **Timestep too large**: Reduce `timestep` from 0.001 to 0.0001 or 0.0002
+2. **Morse attraction too strong**: Reduce `morse_D0` from 10.0 to 5.0
+3. **Repulsion too strong**: Reduce `rep_epsilon` from 800.0 to 400.0
+4. **Density too high**: Reduce density or increase box size
+
+**Current Stable Values**:
+- `timestep = 0.0001`
+- `morse_D0 = 5.0` (base_epsilon)
+- `rep_epsilon = 800.0`
+- `density = 0.005`
+
+### Issue 2: Segmentation Fault
+**Symptoms**: Simulation crashes immediately with segfault
+
+**Causes & Solutions**:
+1. **Uninitialized arrays**: Ensure all arrays are allocated in constructor, not `init()`
+2. **Missing comm_forward**: Must set `comm_forward = 3` in constructor
+3. **Array access out of bounds**: Check `i < atom->nmax` before accessing arrays
+
+**Fix**: Move all array allocation to constructor, initialize to safe defaults (-1 for last_change, 1 for effective_type).
+
+### Issue 3: "Lost Atoms" Error
+**Symptoms**: `Lost atoms: original 100 current 90`
+
+**Causes & Solutions**:
+1. **Temperature too high**: Reduce from 1.0 to 0.3
+2. **Initial velocities too large**: Scale initial velocities by 0.5
+3. **Thermostat too weak**: Reduce `Tdamp` from 100.0 to 1.0 (stronger damping)
+4. **Minimization incompatible**: Remove minimization steps (LAMMPS doesn't support with rigid bodies)
+
+**Current Stable Values**:
+- `temperature = 0.3`
+- `Tdamp = 1.0`
+- No minimization
+
+### Issue 4: Wild Spinning ("Soccer Ball" Effect)
+**Symptoms**: Monomers spin wildly during state changes
+
+**Causes & Solutions**:
+1. **Patches too light**: Increase patch mass from 0.000001 to 0.1
+2. **Body too light**: Increase body mass to 0.6 (total = 1.0)
+3. **Thermostat too slow**: Reduce `Tdamp` to 1.0
+4. **Energy spike too large**: Reduce Morse attractions or increase cooldown
+
+**Physics**: Moment of Inertia I = Σ m_i × r_i². If patches are massless, I → 0, causing infinite rotation speed.
+
+**Current Stable Values**:
+- `body_mass = 0.6`
+- `patch_mass = 0.1` each
+- `Tdamp = 1.0`
+
+### Issue 5: "Fruit Salad" Monomers (Mixed Colors)
+**Symptoms**: Single monomer has patches of different colors
+
+**Causes & Solutions**:
+1. **MPI split-brain**: Add consistency sweep at end of `check_and_change()`
+2. **Missing comm_forward**: Set `comm_forward = 3` in constructor
+3. **Incorrect pack/unpack order**: Ensure pack and unpack use same order
+
+**Fix**: Consistency sweep checks all atoms (including ghosts) and forces all patches in a molecule to match the newest type.
+
+### Issue 6: Phantom State Changes (No Contact)
+**Symptoms**: Monomers change type without touching anything
+
+**Causes & Solutions**:
+1. **Ghost atom garbage memory**: Set `comm_forward = 3` and ensure pack/unpack transmit `last_change`
+2. **Cutoff too large**: Reduce `morse_rcut` from 2.5 to 1.5 if needed
+3. **Uninitialized last_change**: Initialize to -1 in constructor
+
+**Fix**: Proper MPI communication ensures ghost atoms have correct `last_change` values.
+
+### Issue 7: "Flash Mob" Cascades
+**Symptoms**: All monomers change type simultaneously in a cascade
+
+**Causes & Solutions**:
+1. **Probability too high**: Reduce from 0.7 to 0.05
+2. **Check interval too short**: Increase from 100 to 5000 steps
+3. **Cooldown too short**: Increase from 1000 to 10000 steps
+
+**Current Stable Values**:
+- `probability = 0.05`
+- `check_every = 5000`
+- `cooldown_steps = 10000`
+
+### Issue 8: No Cluster Formation
+**Symptoms**: Monomers float around but never form clusters
+
+**Causes & Solutions**:
+1. **Density too low**: Increase from 0.0005 to 0.005 (10x)
+2. **Box too large**: Reduce box multiplier from 3.5 to 2.0
+3. **Cutoff too small**: Increase `morse_rcut` to 2.5
+4. **Not enough particles**: Increase `num_monomers` from 20 to 50
+5. **Run too short**: Self-assembly takes 10^7-10^8 steps
+
+**Current Stable Values**:
+- `density = 0.005`
+- `box_multiplier = 2.0`
+- `morse_rcut = 2.5`
+- `num_monomers = 50`
+
+### Issue 9: All Monomers Become Same Type
+**Symptoms**: System converges to all type 3 (or 4, or 5)
+
+**Causes & Solutions**:
+1. **Unification logic bug**: Ensure each patch changes independently (atom-based triggering)
+2. **Probability = 1.0**: Should be < 1.0 for symmetry breaking
+3. **No cooldown**: Cooldown prevents rapid cascades
+
+**Fix**: Remove any "majority vote" or unification logic that forces all patches to match.
+
+## Production-Quality Parameters
+
+### Current Stable Configuration
+```python
+# Physical Parameters
+body_mass = 0.6
+patch_mass = 0.1  # each (4 patches × 0.1 = 0.4 total)
+temperature = 0.3
+timestep = 0.0001
+Tdamp = 1.0  # Strong damping
+
+# Interaction Parameters
+morse_alpha = 1.2  # Wide well
+morse_rcut = 2.5   # Large capture radius
+base_epsilon = 5.0  # Morse well depth
+rep_epsilon = 800.0  # Body repulsion
+
+# State Change Parameters
+probability = 0.05      # 5% chance
+check_every = 5000     # Check every 5000 steps
+cooldown_steps = 10000 # 10k step cooldown
+
+# System Parameters
+density = 0.005
+box_multiplier = 2.0
+num_monomers = 50
+```
 
 ## Quick Start
 
-### 1. Ensure LAMMPS is Built with fix_state_change
-
-The C++ fix must be installed in your custom LAMMPS build. See `../fix_state_change/INSTALL_STEP_BY_STEP.md` for details.
-
-Verify it's available:
+### 1. Build LAMMPS with Fix
 ```bash
-/work/nvme/bewl/lguttieres/lammps_build/lammps/src/lmp_mpi -help | grep state/change
+cd /work/nvme/bewl/lguttieres/lammps_build/lammps/src
+cp /work/nvme/bewl/lguttieres/sims/self_processors/sim_templates/state_change/octahedron/fix_state_change_octahedron.* .
+make mpi -j 4
 ```
 
-### 2. Generate and Run Simulation
-
-From the `octahedron/` directory:
-
+Verify installation:
 ```bash
-# Submit job (will generate input files if needed)
-sbatch submit_octahedron.slurm
+./lmp_mpi -help | grep "state/change/octahedron"
+```
 
-# Or generate manually first
-python3 generate_octahedron_cpp.py
+### 2. Run Simulation
+```bash
+cd /work/nvme/bewl/lguttieres/sims/self_processors/sim_templates/state_change/octahedron
+FORCE_REGENERATE=1 sbatch submit_octahedron.slurm
 ```
 
 ### 3. Monitor Progress
-
 ```bash
 # Check job status
 squeue -u $USER
 
 # Watch output
-tail -f slurm_octahedron-*.out
+tail -f octahedron_simulation_cpp/lammps_stdout.log | grep -E "Step|Temp|f_state"
 
-# Check simulation output
-tail -f octahedron_simulation_cpp/lammps_stdout.log
+# Check for errors
+tail -f slurm_octahedron-*.err
 ```
 
-## Key Parameters
+## Troubleshooting Checklist
 
-### Geometry Parameters
-- `num_monomers`: Number of octahedron monomers (default: 50)
-- `vertex_radius`: Radius of vertex spheres (default: 2.0)
-- `patch_radius`: Radius of patch spheres (default: 0.5, for reference)
-- `box_size`: Simulation box size (auto-calculated from density if None)
+When starting a new state change simulation, verify:
 
-### State Change Parameters
-- `state_change_probability`: Probability when conditions met (default: 0.7)
-- `patch_coordination_cutoff`: Distance cutoff for coordination detection (default: 0.34)
-- `state_change_freq`: Check for state changes every N steps (default: 100)
-- `cooldown_steps`: Minimum steps between state changes for same patch (default: 1000)
+- [ ] `comm_forward` is set correctly (matches number of values in pack_forward_comm)
+- [ ] All arrays allocated in constructor, not `init()`
+- [ ] Arrays initialized to safe defaults (-1 for last_change)
+- [ ] Consistency sweep implemented for monochromatic rule
+- [ ] Probability is low (0.05-0.1, not 0.7)
+- [ ] Check interval is long (5000+, not 100)
+- [ ] Cooldown is long (10000+, not 1000)
+- [ ] Mass distribution provides rotational stability
+- [ ] Tdamp is strong (1.0, not 100.0)
+- [ ] Morse cutoff is reasonable (1.5-2.5)
+- [ ] Density allows collisions but not instant gelation
 
-### Interaction Parameters
-- `morse_D0_22`: Morse well depth for type 2-2 interactions (default: 10.0)
-- `morse_D0_33`: Morse well depth for type 3-3 interactions (default: 10.0)
-- `morse_D0_23`: Cross-interaction (default: 0.0, no interaction)
-- `rep_epsilon`: Repulsion strength for body-body interactions (default: 10000.0)
-- `temperature`: Simulation temperature (default: 1.0)
-- `morse_cutoff`: Morse potential cutoff distance (default: 4.0)
+## Expected Behavior
 
-### Simulation Parameters
-- `timesteps`: Total simulation steps (default: 500000000)
-- `timestep`: Integration timestep (default: 0.001)
-- `dump_freq`: Trajectory output frequency (default: 10000)
-- `thermo_freq`: Thermodynamic output frequency (default: 5000)
+### Initial Phase (0-100k steps)
+- Slow, gradual evolution
+- Rare state changes (5% probability)
+- Monomers jostle and explore
 
-## Differences from Rigid Patchy Simulation
+### Assembly Phase (100k-10M steps)
+- Controlled dimerization
+- Gradual cluster growth
+- No instant cascades
 
-1. **Geometry**: Octahedron monomer (1 body, 4 patches) vs 3-body spheres (3 bodies, 3 patches)
-2. **Particles per monomer**: 5 vs 6
-3. **Patch arrangement**: 4 patches (all change together) vs 3 patches (can change individually)
-4. **Assembly**: 6 monomers form full octahedron structure
-4. **Masses**: Vertex mass = 0.5 (from JAX code) vs body mass = 1.0
+### Visual Check (OVITO/VMD)
+- ✅ Monochromatic monomers (all patches same color)
+- ✅ No phantom changes
+- ✅ Smooth, controlled evolution
+- ❌ Mixed colors = MPI bug
+- ❌ Instant cascades = probability too high
 
-## Output Files
+## Files
 
-After running, `octahedron_simulation_cpp/` contains:
-- `data.octahedron_monomers` - Initial configuration
-- `in.octahedron_monomers` - LAMMPS input script
-- `dump.octahedron_monomers.lammpstrj` - Trajectory file
-- `log.lammps` - LAMMPS log file
-- `lammps_stdout.log` - Standard output
-
-## Customization
-
-To modify parameters, edit the function call in `submit_octahedron.slurm` or run `generate_octahedron_cpp.py` directly with custom arguments:
-
-```python
-from generate_octahedron_cpp import create_lammps_octahedron_script_cpp
-
-create_lammps_octahedron_script_cpp(
-    num_monomers=100,
-    temperature=0.8,
-    morse_D0_22=15.0,
-    morse_D0_33=15.0,
-    # ... other parameters
-)
-```
-
-## Troubleshooting
-
-### "Unknown fix style: state/change"
-- Rebuild LAMMPS with the fix installed (see installation docs)
-
-### State changes not occurring
-- Check that patches are coordinating (cutoff may be too tight)
-- Verify `state_change_probability` is not too low
-- Check `cooldown_steps` is not too long
-
-### Simulation instability
-- Try reducing `timestep`
-- Increase `rep_epsilon` for stronger repulsion
-- Reduce Morse well depths (`morse_D0_22`, `morse_D0_33`)
+- `generate_octahedron_cpp.py` - Generates LAMMPS input files
+- `submit_octahedron.slurm` - SLURM submission script
+- `fix_state_change_octahedron.cpp` - Custom C++ fix (with all critical fixes)
+- `fix_state_change_octahedron.h` - Header file
+- `octahedron_simulation_cpp/` - Output directory
 
 ## Notes
 
-- The octahedron geometry matches the JAX MD implementation structure
-- State changes preserve the octahedron rigid body structure (no unfix/refix needed)
-- The C++ fix handles all state changes automatically during dynamics
+- **Mass ≠ Size**: Patches can be heavy (for rotation) but still overlap (no repulsion)
+- **Slow is Good**: Low probability + long intervals = stable, controlled reactions
+- **MPI is Critical**: Always set `comm_forward` and implement consistency sweep
+- **Patience Required**: Self-assembly takes 10^7-10^8 steps with slow reaction rates
 
+## References
+
+This implementation is based on extensive debugging and optimization. Key lessons:
+1. Memory safety (MPI communication) is non-negotiable
+2. Physical stability (mass + damping) prevents numerical disasters
+3. Kinetic control (slow reactions) prevents logical cascades
+
+For questions or issues, refer to this README's troubleshooting section first.

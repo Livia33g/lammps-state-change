@@ -36,6 +36,8 @@ class FixStateChangeOctahedron : public Fix {
   void post_force_respa(int, int, int) override;
   void end_of_step() override;
   double compute_scalar() override;
+  int pack_forward_comm(int, int *, double *, int, int *) override;
+  void unpack_forward_comm(int, int, double *) override;
   void grow_arrays(int) override;
   void copy_arrays(int, int, int) override;
   int pack_exchange(int, double *) override;
@@ -53,13 +55,28 @@ class FixStateChangeOctahedron : public Fix {
   int group_patches;            // Group ID for all patches (types 1, 3, 4, 5)
   
   int *last_change;             // Per-atom: timestep of last change (for cooldown)
+  int *cooldown_duration;       // Per-atom: randomized cooldown duration (jitter to break synchronization)
   int *effective_type;          // Per-atom: effective type (1, 3, 4, or 5 for patches)
   double *prev_coord;           // Per-atom: previous coordination number
+  int *contact_timer;           // Per-atom: consecutive steps of attachment (for hysteresis)
+  int hysteresis_threshold;     // Threshold: how many consecutive steps to wait before state change
   
   bigint next_check;            // Next timestep to check for state changes
   int nchanges;                 // Number of state changes this check (local)
   int nattempts;                // Number of change attempts this check (local)
   int seed;                     // Random seed
+  int max_changes_per_step;     // Global rate limiter: maximum molecules that can change per timestep
+  
+  // Debug counters
+  int nconfident_contacts;      // Count of patches that reached confidence threshold
+  int ntrigger_attempts;        // Count of trigger attempts (before probability check)
+  int ncooldown_blocked;        // Count of changes blocked by cooldown
+  
+  // Consistency sweep diagnostic counters
+  int nsweep_attempts;          // Count of molecules sweep tries to update
+  int nsweep_blocked_cooldown;  // Count blocked by Gate 1 (cooldown)
+  int nsweep_blocked_timestamp; // Count blocked by Gate 2 (timestamp difference too small)
+  int nsweep_applied;           // Count actually updated by sweep
   
   void check_and_change();
   void update_atom_types();

@@ -18,6 +18,16 @@ rigid_patchy_simulation_cpp_test/
 rigid_patchy_simulation_continuous/
 test_potentials/
 
+# State-change generated outputs (do not commit)
+dimer_simulation_cpp/
+debugging/
+octahedron/octahedron_simulation_cpp/
+octahedron/octahedron_simulation_test/
+octahedron/octahedron_shape/
+
+# LAMMPS runtime logs that don't match *.log
+log.lammps
+
 # Python cache
 __pycache__/
 *.pyc
