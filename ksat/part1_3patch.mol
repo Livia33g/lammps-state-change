@@ -1,0 +1,31 @@
+# Patchy particle with 3 patches on one side (for ksat simulation)
+# Triangle size parameter: b = 0.1
+# cos(30°)=0.8660254038, sin(30°)=0.5
+# Patches are on the +x side at x = 0.5
+
+4 atoms
+0 bonds
+0 angles
+0 dihedrals
+
+Coords  # atom id, x, y, z
+
+1  0.0    0.0           0.0            # core (type 1)
+2  0.5    0.0           0.1            # patch (vertex 1, type 2)
+3  0.5    0.0866025404 -0.05           # patch (vertex 2, type 2)
+4  0.5   -0.0866025404 -0.05           # patch (vertex 3, type 2)
+
+Types
+
+1 1
+2 2
+3 2
+4 2
+
+Masses
+
+1 1.0    # core (diameter 1.0)
+2 0.001  # patch (diameter ~0.1)
+3 0.001
+4 0.001
+
