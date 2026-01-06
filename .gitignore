@@ -28,6 +28,10 @@ octahedron/octahedron_shape/
 # LAMMPS runtime logs that don't match *.log
 log.lammps
 
+# Local archive (keep workspace clean; do not commit)
+back/**
+!back/README.md
+
 # Python cache
 __pycache__/
 *.pyc
