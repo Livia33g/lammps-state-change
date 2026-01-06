@@ -1,9 +1,9 @@
 # Rebuilding LAMMPS with All State Change Fixes
 
 This guide explains how to rebuild LAMMPS to include all custom state change fixes:
-- `fix_state_change` (original dimer fix)
-- `fix_state_change/octahedron` (octahedron fix)
-- `fix_state_change/ksat` (ksat fix)
+- `state/change/dimer` (current dimer flip fix; source: `fix_state_change_dimer.*`)
+- `state/change/octahedron` (octahedron fix; source: `octahedron/fix_state_change_octahedron.*`)
+- `state/change/ksat` (ksat fix; source: `ksat/fix_state_change_ksat.*`)
 
 ## Prerequisites
 
@@ -56,11 +56,11 @@ cd /work/nvme/bewl/lguttieres/lammps_build/lammps/src
 
 ### Step 4: Copy All Fix Files
 
-Copy all three state change fix files:
+Copy the fix files you want compiled into LAMMPS:
 
 ```bash
-# Original dimer fix
-cp /work/nvme/bewl/lguttieres/sims/self_processors/sim_templates/state_change/fix_state_change/fix_state_change.{cpp,h} .
+# Dimer fix (current)
+cp /work/nvme/bewl/lguttieres/sims/self_processors/sim_templates/state_change/fix_state_change_dimer.{cpp,h} .
 
 # Octahedron fix
 cp /work/nvme/bewl/lguttieres/sims/self_processors/sim_templates/state_change/octahedron/fix_state_change_octahedron.{cpp,h} .
@@ -73,7 +73,7 @@ ls -lh fix_state_change*.{cpp,h}
 ```
 
 You should see 6 files:
-- `fix_state_change.cpp` and `fix_state_change.h`
+- `fix_state_change_dimer.cpp` and `fix_state_change_dimer.h`
 - `fix_state_change_octahedron.cpp` and `fix_state_change_octahedron.h`
 - `fix_state_change_ksat.cpp` and `fix_state_change_ksat.h`
 
