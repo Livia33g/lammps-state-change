@@ -472,6 +472,7 @@ void FixStateChangeOctahedron::check_and_change()
             if (all_neighbors_lower_id) {
              should_change = true;
                 // Pick new type randomly from 3, 4, 5 (33% each)
+                // Note: Type 1 can evolve to any of {3, 4, 5} with equal probability
              double r = random.uniform();
              if (r < 0.333333) new_type = 3;
              else if (r < 0.666666) new_type = 4;
@@ -556,22 +557,32 @@ void FixStateChangeOctahedron::check_and_change()
                 }
                 
                 // PASS 3: If condition is met, ALWAYS attempt change (no probability threshold)
-                // The randomness comes from type selection (33% chance to stay same type)
+                // The randomness comes from type selection (50% chance each for the OTHER two types)
                 if (should_i_change && found_conflict) {
                     ntrigger_attempts++;
                         should_change = true;
-                        
-                    // TYPE SELECTION: Randomly pick from all 3 types (3, 4, 5) with 33% chance each
-                    // One of these is the current type, so there's a 33% chance to stay the same
+
+                    // CRITICAL FIX: TYPE SELECTION must EXCLUDE current type to resolve conflict
+                    // If we're type 3, pick from {4, 5} with 50% each
+                    // If we're type 4, pick from {3, 5} with 50% each
+                    // If we're type 5, pick from {3, 4} with 50% each
                             double r = random.uniform();
-                    if (r < 0.333333) {
-                        new_type = 3;
-                    } else if (r < 0.666666) {
-                        new_type = 4;
+                    if (my_eff_type == 3) {
+                        // Currently type 3, touching type 3 -> change to 4 or 5
+                        new_type = (r < 0.5) ? 4 : 5;
+                    } else if (my_eff_type == 4) {
+                        // Currently type 4, touching type 4 -> change to 3 or 5
+                        new_type = (r < 0.5) ? 3 : 5;
+                    } else if (my_eff_type == 5) {
+                        // Currently type 5, touching type 5 -> change to 3 or 4
+                        new_type = (r < 0.5) ? 3 : 4;
                     } else {
-                        new_type = 5;
+                        // Fallback (should not happen) - pick from all 3
+                        if (r < 0.333333) new_type = 3;
+                        else if (r < 0.666666) new_type = 4;
+                        else new_type = 5;
                         }
-                        
+
                         nattempts++;
                     // Reset timer with jitter to desynchronize future triggers
                         int jitter_magnitude = 10;
