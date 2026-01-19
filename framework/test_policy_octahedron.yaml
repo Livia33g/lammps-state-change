@@ -1,0 +1,91 @@
+# Test policy: Current octahedron fix translated to YAML
+# This represents the logic in fix_state_change_octahedron.cpp
+
+metadata:
+  name: "avoid_same_type_octahedron"
+  author: "livia"
+  description: "Higher-ID monomer changes to different type when touching same-type neighbors"
+  version: "1.0"
+  problem: "octahedron"
+
+parameters:
+  check_every: 100
+  cooldown_steps: 10000
+  probability: 1.0
+  cutoff: 2.5
+  group_patches: "patches"
+  hysteresis_threshold: 1000
+  max_changes_per_step: 1
+
+rules:
+  - name: "type1_collision"
+    description: "Type 1 (unreacted) monomers touching type 1"
+
+    trigger:
+      condition: "same_type_contact"
+      my_types: [1]                # Effective type 1 (LAMMPS type 2)
+      neighbor_types: [1]
+      cutoff: "parameter.cutoff"   # Reference parameter above
+      hysteresis:
+        enabled: true
+        threshold: "parameter.hysteresis_threshold"
+        mode: "consecutive"
+
+    action:
+      selector: "higher_molecule_id"
+      change_type: "random_from_list"
+      available_types: [3, 4, 5]
+      probability: "parameter.probability"
+
+    cooldown:
+      base_steps: "parameter.cooldown_steps"
+      jitter:
+        enabled: true
+        range: [0.3, 2.0]
+        per_molecule: true
+
+  - name: "same_type_conflict"
+    description: "Types 3/4/5 (reacted) touching same type"
+
+    trigger:
+      condition: "same_type_contact"
+      my_types: [3, 4, 5]
+      neighbor_types: "same_as_mine"
+      cutoff: "parameter.cutoff"
+      hysteresis:
+        enabled: true
+        threshold: "parameter.hysteresis_threshold"
+        mode: "consecutive"
+
+    action:
+      selector: "higher_molecule_id"
+      change_type: "exclude_current_type"  # KEY: must change to different
+      available_types: [3, 4, 5]
+      probability: "parameter.probability"
+
+    cooldown:
+      base_steps: "parameter.cooldown_steps"
+      jitter:
+        enabled: true
+        range: [0.3, 2.0]
+        per_molecule: true
+
+advanced:
+  mpi:
+    forward_comm: true
+    consistency_sweep:
+      enabled: true
+      timestamp_threshold: 100
+      respect_cooldown: true
+
+  global_rate_limit:
+    enabled: true
+    max_changes: "parameter.max_changes_per_step"
+
+  type_mapping:
+    # Map policy types to LAMMPS types
+    effective_to_lammps:
+      1: 2  # Effective type 1 → LAMMPS type 2
+      3: 3
+      4: 4
+      5: 5

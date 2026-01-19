@@ -1,0 +1,340 @@
+{# Template for check_and_change() function - the core logic #}
+void {{ fix_class_name }}::check_and_change()
+{
+  // CRITICAL FIX: Update ghost atoms immediately before conflict checks
+  comm->forward_comm(this);
+
+  int *type = atom->type;
+  int *mask = atom->mask;
+  int *molecule = atom->molecule;
+  int nlocal = atom->nlocal;
+  bigint timestep = update->ntimestep;
+
+  std::map<int, int> mol_changes;
+
+  // SCAN LOOP: Look for triggers
+  for (int i = 0; i < nlocal; i++) {
+    int my_seed = seed + static_cast<int>(timestep) + comm->me + molecule[i];
+    RanPark random(lmp, my_seed);
+
+    // Basic filters
+    if (!(mask[i] & groupbit)) continue;
+    if (!(mask[i] & group->bitmask[group_patches])) continue;
+    if (type[i] != 2 && type[i] != 3 && type[i] != 4 && type[i] != 5) continue;
+
+    // Skip if already scheduled
+    if (mol_changes.find(molecule[i]) != mol_changes.end()) continue;
+
+    // Cooldown check
+    if (last_change[i] >= 0) {
+        bigint steps_since_change = timestep - last_change[i];
+        if (steps_since_change < cooldown_duration[i]) continue;
+    }
+
+    int my_eff_type = effective_type[i];
+
+    // Compute coordination
+    double coord_1 = get_coordination(i, 1);
+    double coord_3 = get_coordination(i, 3);
+    double coord_4 = get_coordination(i, 4);
+    double coord_5 = get_coordination(i, 5);
+    double total_coord = coord_1 + coord_3 + coord_4 + coord_5;
+
+    bool is_attached = (total_coord >= 1.0);
+
+    // Hysteresis logic
+    if (is_attached) {
+        contact_timer[i]++;
+    } else {
+        contact_timer[i] = 0;
+    }
+
+    bool confident = (contact_timer[i] > hysteresis_threshold);
+    bool trigger_moment = (contact_timer[i] == (hysteresis_threshold + 1)) ||
+                          (contact_timer[i] > hysteresis_threshold && random.uniform() < (1.0 / 50.0));
+
+    bool should_change = false;
+    int new_type = my_eff_type;
+
+{% for rule in rules %}
+    // Rule: {{ rule.name }}
+    {% if rule.trigger.my_types == [1] %}
+    if (my_eff_type == 1 && confident && trigger_moment) {
+        bool touching_same_type_1 = (coord_1 >= 1.0);
+
+        if (touching_same_type_1) {
+            int my_mol = molecule[i];
+            bool all_neighbors_lower_id = true;
+            double cutoffsq = {{ rule.trigger.cutoff }} * {{ rule.trigger.cutoff }};
+
+            int nall = atom->nlocal + atom->nghost;
+            for (int j = 0; j < nall; j++) {
+                if (j == i) continue;
+                if (molecule[j] == my_mol) continue;
+                if (!(mask[j] & group->bitmask[group_patches])) continue;
+                if (effective_type[j] != 1) continue;
+
+                double dx = atom->x[j][0] - atom->x[i][0];
+                double dy = atom->x[j][1] - atom->x[i][1];
+                double dz = atom->x[j][2] - atom->x[i][2];
+                double *prd = domain->prd;
+                if (prd[0] > 0.0) dx -= prd[0] * std::round(dx / prd[0]);
+                if (prd[1] > 0.0) dy -= prd[1] * std::round(dy / prd[1]);
+                if (prd[2] > 0.0) dz -= prd[2] * std::round(dz / prd[2]);
+                double rsq = dx*dx + dy*dy + dz*dz;
+
+                if (rsq < cutoffsq) {
+                    int neighbor_mol = molecule[j];
+                    if (neighbor_mol > my_mol) {
+                        all_neighbors_lower_id = false;
+                    }
+                }
+            }
+
+            if (all_neighbors_lower_id) {
+                should_change = true;
+                {% if rule.action.change_type == "random_from_list" %}
+                // Pick randomly from {{ rule.action.available_types }}
+                double r = random.uniform();
+                {% set types = rule.action.available_types %}
+                {% if types|length == 3 %}
+                if (r < 0.333333) new_type = {{ types[0] }};
+                else if (r < 0.666666) new_type = {{ types[1] }};
+                else new_type = {{ types[2] }};
+                {% endif %}
+                {% endif %}
+                nattempts++;
+                int jitter_magnitude = 10;
+                int random_jitter = static_cast<int>(random.uniform() * jitter_magnitude);
+                contact_timer[i] = -random_jitter;
+            }
+        }
+    }
+    {% else %}
+    // Reacted monomer logic (types 3/4/5)
+    else if ((my_eff_type == 3 || my_eff_type == 4 || my_eff_type == 5) && confident && trigger_moment) {
+        bool touching_same = false;
+        if (my_eff_type == 3 && coord_3 >= 1.0) touching_same = true;
+        if (my_eff_type == 4 && coord_4 >= 1.0) touching_same = true;
+        if (my_eff_type == 5 && coord_5 >= 1.0) touching_same = true;
+
+        if (touching_same) {
+            bool self_in_cooldown = false;
+            if (last_change[i] >= 0) {
+                bigint steps_since_change = timestep - last_change[i];
+                if (steps_since_change < cooldown_duration[i]) {
+                    self_in_cooldown = true;
+                }
+            }
+
+            if (self_in_cooldown) {
+                ncooldown_blocked++;
+            } else {
+                int my_mol = molecule[i];
+                bool should_i_change = false;
+                bool found_conflict = false;
+                bool all_neighbors_lower_id = true;
+                double cutoffsq = {{ rule.trigger.cutoff }} * {{ rule.trigger.cutoff }};
+
+                int nall = atom->nlocal + atom->nghost;
+                for (int j = 0; j < nall; j++) {
+                    if (j == i) continue;
+                    if (molecule[j] == my_mol) continue;
+                    if (!(mask[j] & group->bitmask[group_patches])) continue;
+                    if (type[j] < 2 || type[j] > 5) continue;
+
+                    int j_eff_type = effective_type[j];
+                    if (j_eff_type != my_eff_type) continue;
+
+                    double dx = atom->x[j][0] - atom->x[i][0];
+                    double dy = atom->x[j][1] - atom->x[i][1];
+                    double dz = atom->x[j][2] - atom->x[i][2];
+                    double *prd = domain->prd;
+                    if (prd[0] > 0.0) dx -= prd[0] * std::round(dx / prd[0]);
+                    if (prd[1] > 0.0) dy -= prd[1] * std::round(dy / prd[1]);
+                    if (prd[2] > 0.0) dz -= prd[2] * std::round(dz / prd[2]);
+                    double rsq = dx*dx + dy*dy + dz*dz;
+
+                    if (rsq < cutoffsq) {
+                        found_conflict = true;
+                        int neighbor_mol = molecule[j];
+                        if (neighbor_mol > my_mol) {
+                            all_neighbors_lower_id = false;
+                        }
+                    }
+                }
+
+                if (found_conflict && all_neighbors_lower_id) {
+                    should_i_change = true;
+                }
+
+                if (should_i_change && found_conflict) {
+                    ntrigger_attempts++;
+                    should_change = true;
+
+                    {% if rule.action.change_type == "exclude_current_type" %}
+                    // CRITICAL FIX: Exclude current type
+                    double r = random.uniform();
+                    if (my_eff_type == 3) {
+                        new_type = (r < 0.5) ? 4 : 5;
+                    } else if (my_eff_type == 4) {
+                        new_type = (r < 0.5) ? 3 : 5;
+                    } else if (my_eff_type == 5) {
+                        new_type = (r < 0.5) ? 3 : 4;
+                    } else {
+                        // Fallback
+                        if (r < 0.333333) new_type = 3;
+                        else if (r < 0.666666) new_type = 4;
+                        else new_type = 5;
+                    }
+                    {% endif %}
+
+                    nattempts++;
+                    int jitter_magnitude = 10;
+                    int random_jitter = static_cast<int>(random.uniform() * jitter_magnitude);
+                    contact_timer[i] = -random_jitter;
+                }
+            }
+        }
+    }
+    {% endif %}
+{% endfor %}
+
+    if (should_change) {
+        mol_changes[molecule[i]] = new_type;
+    }
+
+    prev_coord[i] = total_coord;
+  }
+
+  // GLOBAL RATE LIMITER
+  int local_change_count = static_cast<int>(mol_changes.size());
+  int total_changes_global = 0;
+  MPI_Allreduce(&local_change_count, &total_changes_global, 1, MPI_INT, MPI_SUM, world);
+
+  {% if advanced.global_rate_limit.enabled %}
+  if (total_changes_global > {{ advanced.global_rate_limit.max_changes }}) {
+      int rate_limiter_seed = seed + static_cast<int>(timestep) + comm->me + 7777;
+      RanPark rate_limiter_random(lmp, rate_limiter_seed);
+
+      double reduction_factor = static_cast<double>({{ advanced.global_rate_limit.max_changes }}) / static_cast<double>(total_changes_global);
+      int allowed_local = static_cast<int>(local_change_count * reduction_factor + 0.5);
+      if (allowed_local > local_change_count) allowed_local = local_change_count;
+      if (allowed_local < 0) allowed_local = 0;
+
+      if (allowed_local < local_change_count) {
+          std::vector<int> mol_ids;
+          for (const auto& pair : mol_changes) {
+              mol_ids.push_back(pair.first);
+          }
+
+          for (size_t i = 0; i < mol_ids.size(); i++) {
+              size_t j = static_cast<size_t>(rate_limiter_random.uniform() * (mol_ids.size() - i)) + i;
+              std::swap(mol_ids[i], mol_ids[j]);
+          }
+
+          std::map<int, int> limited_mol_changes;
+          for (int i = 0; i < allowed_local && i < static_cast<int>(mol_ids.size()); i++) {
+              limited_mol_changes[mol_ids[i]] = mol_changes[mol_ids[i]];
+          }
+          mol_changes = limited_mol_changes;
+      }
+  }
+  {% endif %}
+
+  // UPDATE LOOP
+  std::map<int, int> mol_cooldown_durations;
+  if (!mol_changes.empty()) {
+      int update_seed = seed + static_cast<int>(timestep) + comm->me + 9999;
+      RanPark update_random(lmp, update_seed);
+
+      for (const auto& pair : mol_changes) {
+          int mol_id = pair.first;
+          double cooldown_factor = {{ rules[0].cooldown.jitter.range[0] }} + update_random.uniform() * {{ rules[0].cooldown.jitter.range[1] - rules[0].cooldown.jitter.range[0] }};
+          mol_cooldown_durations[mol_id] = static_cast<int>({{ rules[0].cooldown.base_steps }} * cooldown_factor);
+      }
+
+      for (int i = 0; i < nlocal; i++) {
+          auto it = mol_changes.find(molecule[i]);
+          if (it != mol_changes.end()) {
+              effective_type[i] = it->second;
+              last_change[i] = timestep;
+              cooldown_duration[i] = mol_cooldown_durations[molecule[i]];
+
+              int jitter_magnitude = 10;
+              int mol_id = molecule[i];
+              int timer_seed = seed + static_cast<int>(timestep) + comm->me + mol_id + 8888;
+              RanPark timer_random(lmp, timer_seed);
+              int random_jitter = static_cast<int>(timer_random.uniform() * jitter_magnitude);
+              contact_timer[i] = -random_jitter;
+              nchanges++;
+          }
+      }
+  }
+
+  comm->forward_comm(this);
+
+  // Consistency sweep (if enabled)
+  {% if advanced.mpi.consistency_sweep.enabled %}
+  {
+    int nall = atom->nlocal + atom->nghost;
+    std::map<int, int> best_type_per_mol;
+    std::map<int, bigint> newest_time_per_mol;
+
+    for (int i = 0; i < nall; i++) {
+        if (molecule[i] <= 0) continue;
+        if (type[i] < 2 || type[i] > 5) continue;
+        if (last_change[i] < 0) continue;
+        if (last_change[i] > timestep) continue;
+
+        int mol_id = molecule[i];
+        if (newest_time_per_mol.find(mol_id) == newest_time_per_mol.end() ||
+            last_change[i] > newest_time_per_mol[mol_id]) {
+            newest_time_per_mol[mol_id] = last_change[i];
+            best_type_per_mol[mol_id] = effective_type[i];
+        }
+    }
+
+    for (int i = 0; i < nlocal; i++) {
+        if (molecule[i] <= 0) continue;
+        if (type[i] < 2 || type[i] > 5) continue;
+
+        int mol_id = molecule[i];
+        if (best_type_per_mol.find(mol_id) != best_type_per_mol.end()) {
+            int target_type = best_type_per_mol[mol_id];
+
+            bool in_cooldown = false;
+            if (last_change[i] >= 0) {
+                bigint steps_since_change = timestep - last_change[i];
+                if (steps_since_change < cooldown_duration[i]) {
+                    in_cooldown = true;
+                }
+            }
+
+            bool target_is_significantly_newer = false;
+            bigint target_timestamp = newest_time_per_mol[mol_id];
+            if (last_change[i] < 0) {
+                target_is_significantly_newer = true;
+            } else {
+                if (target_timestamp > timestep) {
+                    target_is_significantly_newer = false;
+                } else {
+                    bigint timestamp_diff = target_timestamp - last_change[i];
+                    if (timestamp_diff > {{ advanced.mpi.consistency_sweep.timestamp_threshold }}) {
+                        target_is_significantly_newer = true;
+                    }
+                }
+            }
+
+            if (!in_cooldown && target_is_significantly_newer && effective_type[i] != target_type) {
+                effective_type[i] = target_type;
+                last_change[i] = timestep;
+            }
+        }
+    }
+  }
+  {% endif %}
+
+  comm->forward_comm(this);
+  MPI_Allreduce(MPI_IN_PLACE, &nchanges, 1, MPI_INT, MPI_SUM, world);
+}
