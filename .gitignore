@@ -18,6 +18,9 @@ rigid_patchy_simulation_cpp_test/
 rigid_patchy_simulation_continuous/
 test_potentials/
 
+# Per-variant generated outputs (new convention)
+**/simulation_cpp/
+
 # State-change generated outputs (do not commit)
 dimer_simulation_cpp/
 debugging/
@@ -28,9 +31,21 @@ octahedron/octahedron_shape/
 # LAMMPS runtime logs that don't match *.log
 log.lammps
 
-# Local archive (keep workspace clean; do not commit)
+# Analysis outputs (ignore artifacts; keep templates)
+**/analysis/*.csv
+**/analysis/*.png
+**/analysis/*.leaderboard.csv
+**/analysis/leaderboard.csv
+!**/analysis/README.md
+!**/analysis/submit_analysis.slurm
+!**/analysis/tasks/
+!**/analysis/tasks/*.json
+
+# Local archive + legacy folders (do not commit)
+back/
 back/**
-!back/README.md
+legacy/
+legacy/**
 
 # Python cache
 __pycache__/

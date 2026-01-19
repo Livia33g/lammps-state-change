@@ -14,6 +14,7 @@
 
 Your LAMMPS build currently has:
 - `fix state/change/dimer` → For the dimer 2→3 flip simulation (current)
+- `fix state/change/dimer_ksat` → For the dimer_ksat A→C (2→4) catalyzed-by-B simulation (new)
 - `fix state/change` → Older generic dimer/rigid patchy monomer simulations (archived under `legacy/`)
 - `fix state/change/octahedron` → For octahedron monomer simulations
 - `fix state/change/ksat` → For ksat simulations

@@ -159,7 +159,7 @@ When behavior looks wrong:
 ## Where things live in this repo
 
 - Dimer generator: `sim_templates/state_change/generate_dimer_cpp.py`
-- Dimer fix: `sim_templates/state_change/fix_state_change_dimer.*`
+- Dimer fix: `sim_templates/state_change/dimer/fix_state_change_dimer.*`
 - Dimer slurm: `sim_templates/state_change/submit_dimer.slurm`
 - Octahedron fix and docs: `sim_templates/state_change/octahedron/`
 

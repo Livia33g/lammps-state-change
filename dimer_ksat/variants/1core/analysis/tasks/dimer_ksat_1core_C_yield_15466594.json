@@ -1,0 +1,14 @@
+{
+  "name": "dimer_ksat_1core_C_yield_15466594",
+  "dump": "../../simulation_cpp/dump.dimer_ksat_1core.lammpstrj",
+  "thermo": "../../simulation_cpp/lammps_stdout.log",
+  "events": "../../simulation_cpp/lammps_stdout.log",
+  "site_types": [2, 3, 4],
+  "bond_cutoff": 0.7,
+  "yield_mode": "species_fraction",
+  "species_label": 4,
+  "yield_threshold": 0.6,
+  "out_dir": ".."
+}
+
+

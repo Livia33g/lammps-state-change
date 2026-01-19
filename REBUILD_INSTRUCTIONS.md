@@ -1,7 +1,9 @@
 # Rebuilding LAMMPS with All State Change Fixes
 
 This guide explains how to rebuild LAMMPS to include all custom state change fixes:
-- `state/change/dimer` (current dimer flip fix; source: `fix_state_change_dimer.*`)
+- `state/change/dimer` (dimer flip fix; source: `dimer/fix_state_change_dimer.*`)
+- `state/change/dimer_ksat` (A->C catalyzed by B contact; source: `dimer_ksat/variants/base/fix_state_change_dimer_ksat.*`)
+- `state/change/dimer_ksat_twoside` (variant; source: `dimer_ksat/variants/1core_twosideB/fix_state_change_dimer_ksat_twoside.*`)
 - `state/change/octahedron` (octahedron fix; source: `octahedron/fix_state_change_octahedron.*`)
 - `state/change/ksat` (ksat fix; source: `ksat/fix_state_change_ksat.*`)
 
@@ -60,7 +62,13 @@ Copy the fix files you want compiled into LAMMPS:
 
 ```bash
 # Dimer fix (current)
-cp /work/nvme/bewl/lguttieres/sims/self_processors/sim_templates/state_change/fix_state_change_dimer.{cpp,h} .
+cp /work/nvme/bewl/lguttieres/sims/self_processors/sim_templates/state_change/dimer/fix_state_change_dimer.{cpp,h} .
+
+# Dimer_ksat fix (A->C catalyzed by B contact)
+cp /work/nvme/bewl/lguttieres/sims/self_processors/sim_templates/state_change/dimer_ksat/variants/base/fix_state_change_dimer_ksat.{cpp,h} .
+
+# Dimer_ksat_twoside fix (A->C only if B has A on both faces)
+cp /work/nvme/bewl/lguttieres/sims/self_processors/sim_templates/state_change/dimer_ksat/variants/1core_twosideB/fix_state_change_dimer_ksat_twoside.{cpp,h} .
 
 # Octahedron fix
 cp /work/nvme/bewl/lguttieres/sims/self_processors/sim_templates/state_change/octahedron/fix_state_change_octahedron.{cpp,h} .
@@ -74,6 +82,7 @@ ls -lh fix_state_change*.{cpp,h}
 
 You should see 6 files:
 - `fix_state_change_dimer.cpp` and `fix_state_change_dimer.h`
+- `fix_state_change_dimer_ksat.cpp` and `fix_state_change_dimer_ksat.h`
 - `fix_state_change_octahedron.cpp` and `fix_state_change_octahedron.h`
 - `fix_state_change_ksat.cpp` and `fix_state_change_ksat.h`
 

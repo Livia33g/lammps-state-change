@@ -6,10 +6,21 @@
 LAMMPS_SRC="/work/nvme/bewl/lguttieres/lammps_build/lammps/src"
 KSAT_DIR="/work/nvme/bewl/lguttieres/sims/self_processors/sim_templates/state_change/ksat"
 OCTAHEDRON_DIR="/work/nvme/bewl/lguttieres/sims/self_processors/sim_templates/state_change/octahedron"
+DIMER_DIR="/work/nvme/bewl/lguttieres/sims/self_processors/sim_templates/state_change/dimer"
+DIMER_KSAT_DIR="/work/nvme/bewl/lguttieres/sims/self_processors/sim_templates/state_change/dimer_ksat"
 
 # Step 1: Navigate to LAMMPS source directory
 cd "$LAMMPS_SRC"
 echo "✅ Changed to LAMMPS source directory: $(pwd)"
+
+# Step 1.5: Copy dimer fixes (dimer + dimer_ksat)
+echo ""
+echo "--- Copying dimer fix files ---"
+cp "$DIMER_DIR/fix_state_change_dimer.cpp" .
+cp "$DIMER_DIR/fix_state_change_dimer.h" .
+cp "$DIMER_KSAT_DIR/variants/base/fix_state_change_dimer_ksat.cpp" .
+cp "$DIMER_KSAT_DIR/variants/base/fix_state_change_dimer_ksat.h" .
+echo "✅ Copied dimer fix files"
 
 # Step 2: Copy fixed ksat files
 echo ""
@@ -28,7 +39,7 @@ echo "✅ Copied octahedron fix files"
 # Step 4: Verify files are present
 echo ""
 echo "--- Verifying fix files ---"
-ls -lh fix_state_change_ksat.* fix_state_change_octahedron.* 2>/dev/null || echo "⚠️  Some files missing!"
+ls -lh fix_state_change_dimer.* fix_state_change_dimer_ksat.* fix_state_change_ksat.* fix_state_change_octahedron.* 2>/dev/null || echo "⚠️  Some files missing!"
 
 # Step 5: Check if Makefile needs updating
 echo ""

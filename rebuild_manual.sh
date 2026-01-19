@@ -47,6 +47,8 @@ echo ""
 # ------------------------------------------------------------
 LAMMPS_SRC="/work/nvme/bewl/lguttieres/lammps_build/lammps/src"
 STATE_CHANGE_DIR="/work/nvme/bewl/lguttieres/sims/self_processors/sim_templates/state_change"
+STATE_CHANGE_DIMER_DIR="${STATE_CHANGE_DIR}/dimer"
+STATE_CHANGE_DIMER_KSAT_DIR="${STATE_CHANGE_DIR}/dimer_ksat"
 
 cd "$LAMMPS_SRC"
 echo "Working directory: $(pwd)"
@@ -57,13 +59,47 @@ echo ""
 # ------------------------------------------------------------
 echo "--- Copying Fix Files ---"
 
-# Original dimer fix
-if [[ -f "$STATE_CHANGE_DIR/fix_state_change/fix_state_change.cpp" ]]; then
-    cp "$STATE_CHANGE_DIR/fix_state_change/fix_state_change.cpp" .
-    cp "$STATE_CHANGE_DIR/fix_state_change/fix_state_change.h" .
-    echo "✅ Copied fix_state_change (original dimer)"
+# Dimer fix (state/change/dimer)
+if [[ -f "$STATE_CHANGE_DIMER_DIR/fix_state_change_dimer.cpp" ]]; then
+    cp "$STATE_CHANGE_DIMER_DIR/fix_state_change_dimer.cpp" .
+    cp "$STATE_CHANGE_DIMER_DIR/fix_state_change_dimer.h" .
+    echo "✅ Copied fix_state_change_dimer"
 else
-    echo "⚠️  WARNING: Original fix_state_change not found"
+    echo "⚠️  WARNING: fix_state_change_dimer not found"
+fi
+
+# Dimer_ksat base fix (state/change/dimer_ksat)
+if [[ -f "$STATE_CHANGE_DIMER_KSAT_DIR/variants/base/fix_state_change_dimer_ksat.cpp" ]]; then
+    cp "$STATE_CHANGE_DIMER_KSAT_DIR/variants/base/fix_state_change_dimer_ksat.cpp" .
+    cp "$STATE_CHANGE_DIMER_KSAT_DIR/variants/base/fix_state_change_dimer_ksat.h" .
+    echo "✅ Copied fix_state_change_dimer_ksat"
+else
+    echo "⚠️  WARNING: fix_state_change_dimer_ksat not found"
+fi
+
+# Optional dimer_ksat variant fixes (distinct FixStyle names)
+if [[ -f "$STATE_CHANGE_DIMER_KSAT_DIR/variants/1core_twosideB/fix_state_change_dimer_ksat_twoside.cpp" ]]; then
+    cp "$STATE_CHANGE_DIMER_KSAT_DIR/variants/1core_twosideB/fix_state_change_dimer_ksat_twoside.cpp" .
+    cp "$STATE_CHANGE_DIMER_KSAT_DIR/variants/1core_twosideB/fix_state_change_dimer_ksat_twoside.h" .
+    echo "✅ Copied fix_state_change_dimer_ksat_twoside"
+fi
+
+if [[ -f "$STATE_CHANGE_DIMER_KSAT_DIR/variants/1core_twosideB_twins/fix_state_change_dimer_ksat_twoside_twins.cpp" ]]; then
+    cp "$STATE_CHANGE_DIMER_KSAT_DIR/variants/1core_twosideB_twins/fix_state_change_dimer_ksat_twoside_twins.cpp" .
+    cp "$STATE_CHANGE_DIMER_KSAT_DIR/variants/1core_twosideB_twins/fix_state_change_dimer_ksat_twoside_twins.h" .
+    echo "✅ Copied fix_state_change_dimer_ksat_twoside_twins"
+fi
+
+if [[ -f "$STATE_CHANGE_DIMER_KSAT_DIR/variants/1core_trifaceBD/fix_state_change_dimer_ksat_triface.cpp" ]]; then
+    cp "$STATE_CHANGE_DIMER_KSAT_DIR/variants/1core_trifaceBD/fix_state_change_dimer_ksat_triface.cpp" .
+    cp "$STATE_CHANGE_DIMER_KSAT_DIR/variants/1core_trifaceBD/fix_state_change_dimer_ksat_triface.h" .
+    echo "✅ Copied fix_state_change_dimer_ksat_triface"
+fi
+
+if [[ -f "$STATE_CHANGE_DIMER_KSAT_DIR/variants/1core_threefaceBD/fix_state_change_dimer_ksat_threeface_bd.cpp" ]]; then
+    cp "$STATE_CHANGE_DIMER_KSAT_DIR/variants/1core_threefaceBD/fix_state_change_dimer_ksat_threeface_bd.cpp" .
+    cp "$STATE_CHANGE_DIMER_KSAT_DIR/variants/1core_threefaceBD/fix_state_change_dimer_ksat_threeface_bd.h" .
+    echo "✅ Copied fix_state_change_dimer_ksat_threeface_bd"
 fi
 
 # Octahedron fix
