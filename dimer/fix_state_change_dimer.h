@@ -26,6 +26,7 @@ class FixStateChangeDimer : public Fix {
  public:
   FixStateChangeDimer(class LAMMPS *, int, char **);
   int setmask() override;
+  void init() override;
   void post_integrate() override;
 
  private:
@@ -39,8 +40,10 @@ class FixStateChangeDimer : public Fix {
   int *contact_counter;   // per-atom contact counter (for patch atoms)
 
   class RanPark *random;
+  class Pair *pair;  // pointer to pair potential for energy calculations
 
   void detect_and_schedule(int, std::vector<int> &);
+  double calculate_flip_energy(int mol_id, int old_type, int new_type);
 };
 
 }  // namespace LAMMPS_NS

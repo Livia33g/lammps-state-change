@@ -18,14 +18,17 @@
 #include "comm.h"
 #include "domain.h"
 #include "error.h"
+#include "force.h"
 #include "group.h"
 #include "math_extra.h"
 #include "memory.h"
+#include "pair.h"
 #include "random_park.h"
 #include "update.h"
 #include "memory.h"
 
 #include <set>
+#include <unordered_set>
 #include <vector>
 #include <cmath>
 #include <cstdio>
@@ -34,7 +37,7 @@ using namespace LAMMPS_NS;
 using namespace FixConst;
 
 FixStateChangeDimer::FixStateChangeDimer(LAMMPS *lmp, int narg, char **arg)
-    : Fix(lmp, narg, arg), contact_counter(nullptr), random(nullptr) {
+    : Fix(lmp, narg, arg), contact_counter(nullptr), random(nullptr), pair(nullptr) {
   // Args:
   //   fix ID group-ID state/change/dimer nevery cutoff pflip group_patches [hysteresis_checks]
   // where hysteresis_checks requires sustained contact across N consecutive checks.
@@ -80,6 +83,104 @@ int FixStateChangeDimer::setmask() {
   int mask = 0;
   mask |= POST_INTEGRATE;
   return mask;
+}
+
+void FixStateChangeDimer::init() {
+  // Get pointer to pair potential for energy calculations
+  if (!force->pair)
+    error->all(FLERR, "Fix state/change/dimer requires a pair style");
+  pair = force->pair;
+}
+
+double FixStateChangeDimer::calculate_flip_energy(int mol_id, int old_type, int new_type) {
+  // Calculate the potential energy change when flipping a molecule's patches
+  // from old_type to new_type.
+  //
+  // Strategy:
+  // 1. Find all patch atoms in this molecule with old_type
+  // 2. For each such atom i, iterate over all other atoms j
+  // 3. Calculate pair energy before flip: E_old(i,j) with types (old_type, type[j])
+  // 4. Calculate pair energy after flip: E_new(i,j) with types (new_type, type[j])
+  // 5. Accumulate dE = sum(E_new - E_old)
+
+  int *type = atom->type;
+  int *molecule = atom->molecule;
+  int *mask = atom->mask;
+  double **x = atom->x;
+  double *prd = domain->prd;
+  int nall = atom->nlocal + atom->nghost;
+
+  // Collect all patch atoms in this molecule that will be changed
+  std::vector<int> changed_atoms;
+  changed_atoms.reserve(4);
+
+  for (int i = 0; i < nall; i++) {
+    if (molecule[i] != mol_id) continue;
+    if (!(mask[i] & group->bitmask[group_patches])) continue;
+    if (type[i] != old_type) continue;
+    changed_atoms.push_back(i);
+  }
+
+  if (changed_atoms.empty()) return 0.0;
+
+  // Build a set for fast lookup
+  std::unordered_set<int> changed_set(changed_atoms.begin(), changed_atoms.end());
+
+  double dE = 0.0;
+  double fforce = 0.0;  // dummy variable for pair->single()
+
+  for (int i : changed_atoms) {
+    for (int j = 0; j < nall; j++) {
+      if (j == i) continue;
+
+      // If both i and j are in changed_atoms, only count once (when j > i)
+      bool j_changed = (changed_set.find(j) != changed_set.end());
+      if (j_changed && j < i) continue;
+
+      // Determine old and new types for both atoms
+      int it_old = old_type;
+      int it_new = new_type;
+      int jt_old = type[j];
+      int jt_new = type[j];
+
+      if (j_changed) {
+        jt_old = old_type;
+        jt_new = new_type;
+      }
+
+      // Calculate distance with minimum image convention
+      double dx = x[j][0] - x[i][0];
+      double dy = x[j][1] - x[i][1];
+      double dz = x[j][2] - x[i][2];
+
+      if (prd) {
+        if (prd[0] > 0.0) dx -= prd[0] * std::round(dx / prd[0]);
+        if (prd[1] > 0.0) dy -= prd[1] * std::round(dy / prd[1]);
+        if (prd[2] > 0.0) dz -= prd[2] * std::round(dz / prd[2]);
+      }
+
+      double rsq = dx * dx + dy * dy + dz * dz;
+
+      // Check cutoffs for both old and new type pairs
+      double cut_old = pair->cutsq[it_old][jt_old];
+      double cut_new = pair->cutsq[it_new][jt_new];
+
+      if (rsq >= cut_old && rsq >= cut_new) continue;
+
+      // Calculate pair energies
+      double e_old = (rsq < cut_old)
+          ? pair->single(i, j, it_old, jt_old, rsq, 1.0, 1.0, fforce)
+          : 0.0;
+
+      double e_new = (rsq < cut_new)
+          ? pair->single(i, j, it_new, jt_new, rsq, 1.0, 1.0, fforce)
+          : 0.0;
+
+      dE += (e_new - e_old);
+    }
+  }
+
+  return dE;
 }
 
 void FixStateChangeDimer::detect_and_schedule(int i, std::vector<int> &mol_list) {
@@ -164,14 +265,20 @@ void FixStateChangeDimer::post_integrate() {
     double r = random->uniform();
     if (r > pflip) continue;
 
+    // Calculate energy change BEFORE applying the flip
+    const double dE = calculate_flip_energy(mol, 2, 3);
+
+    // Apply the flip
     for (int i = 0; i < nlocal; i++) {
       if (molecule[i] != mol) continue;
       if (!(mask[i] & group->bitmask[group_patches])) continue;
       if (type[i] == 2) type[i] = 3;  // flip Red patch to Blue
     }
+
+    // Print state change with instantaneous energy change
     if (comm->me == 0) {
-      fprintf(stderr, "STATECHANGE dimer: step %ld mol %d flipped 2->3\n",
-              update->ntimestep, mol);
+      fprintf(stderr, "STATECHANGE dimer: step %ld mol %d flipped 2->3 dE %.15g\n",
+              update->ntimestep, mol, dE);
     }
   }
 }
