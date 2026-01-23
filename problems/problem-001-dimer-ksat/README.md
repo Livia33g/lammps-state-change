@@ -23,9 +23,9 @@ Design a **state-change policy** that efficiently converts A-labeled monomers to
 
 ## 📖 Connection to Research Proposal
 
-This problem implements the **3-SAT encoding** from the proposal (Section: Benchmark of Computational Challenges):
+This problem implements the **3-SAT encoding**:
 
-> *"Variables are encoded as particles with two internal states (''true'' and ''false''); clauses are encoded as particles with three binding sites, each corresponding to one variable. [...] An unsatisfied clause particle can consume fuel to flip the state of a bound variable from unsatisfying to satisfying."*
+> *"Variables are encoded as particles with two internal states (''true'' and ''false''); clauses are encoded as particles with three binding sites, each corresponding to one variable. An unsatisfied clause particle can consume fuel to flip the state of a bound variable from unsatisfying to satisfying."*
 
 ### Molecular Encoding
 
