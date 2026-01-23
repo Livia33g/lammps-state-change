@@ -1,0 +1,258 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Molecular Computing Problem Schema",
+  "description": "Defines a computational challenge with encoding, decoding, and scoring criteria",
+  "type": "object",
+  "required": ["problem_id", "title", "category", "encoding", "decoding", "scoring", "constraints"],
+  "properties": {
+    "problem_id": {
+      "type": "string",
+      "pattern": "^problem-[0-9]{3}-[a-z0-9-]+$",
+      "description": "Unique problem identifier (e.g., problem-001-dimer-ksat)"
+    },
+    "title": {
+      "type": "string",
+      "description": "Human-readable problem title"
+    },
+    "description": {
+      "type": "string",
+      "description": "Detailed problem description with objectives"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "species_conversion",
+        "structure_assembly",
+        "combinatorial_search",
+        "sampling_optimization",
+        "decoding"
+      ],
+      "description": "Problem category from benchmark suite"
+    },
+
+    "encoding": {
+      "type": "object",
+      "description": "How the problem maps onto molecular substrate",
+      "required": ["geometry", "species", "initial_composition"],
+      "properties": {
+        "geometry": {
+          "type": "string",
+          "description": "Molecular geometry template (e.g., 1core_3patch, octahedron)",
+          "examples": ["1core_3patch", "dimer", "octahedron", "tetrahedron"]
+        },
+        "species": {
+          "type": "array",
+          "description": "Species labels and their LAMMPS type mappings",
+          "items": {
+            "type": "object",
+            "required": ["label", "lammps_type", "role"],
+            "properties": {
+              "label": {
+                "type": "string",
+                "description": "Human-readable label (A, B, C, etc.)"
+              },
+              "lammps_type": {
+                "type": "integer",
+                "minimum": 1,
+                "description": "LAMMPS atom type number"
+              },
+              "role": {
+                "type": "string",
+                "enum": ["core", "patch", "variable"],
+                "description": "Role in the system"
+              },
+              "description": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "initial_composition": {
+          "type": "object",
+          "description": "Initial molecule counts by species",
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "system_parameters": {
+          "type": "object",
+          "properties": {
+            "particle_count": {"type": "integer", "minimum": 1},
+            "density": {"type": "number", "minimum": 0},
+            "temperature": {"type": "number", "minimum": 0},
+            "box_size": {"type": "number", "minimum": 0}
+          }
+        }
+      }
+    },
+
+    "decoding": {
+      "type": "object",
+      "description": "How to extract computational answer from molecular state",
+      "required": ["yield_mode", "target"],
+      "properties": {
+        "yield_mode": {
+          "type": "string",
+          "enum": [
+            "species_fraction",
+            "cluster_based",
+            "exact_structure",
+            "path_validity",
+            "sat_satisfaction"
+          ],
+          "description": "Method for computing yield from trajectory"
+        },
+        "target": {
+          "type": "object",
+          "description": "Target structure/configuration definition",
+          "oneOf": [
+            {
+              "required": ["species_label"],
+              "properties": {
+                "species_label": {
+                  "type": "string",
+                  "description": "Species label to measure (for species_fraction mode)"
+                }
+              }
+            },
+            {
+              "required": ["cluster_size"],
+              "properties": {
+                "cluster_size": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "description": "Target cluster size (for cluster_based mode)"
+                },
+                "composition": {
+                  "type": "object",
+                  "description": "Required composition (species:count)",
+                  "additionalProperties": {"type": "integer"}
+                }
+              }
+            }
+          ]
+        },
+        "threshold": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Minimum yield for success (0-1)"
+        },
+        "measurement_interval": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 1000,
+          "description": "Timesteps between yield measurements"
+        }
+      }
+    },
+
+    "scoring": {
+      "type": "object",
+      "description": "How submissions are ranked (Pareto frontier metrics)",
+      "required": ["primary_metric"],
+      "properties": {
+        "primary_metric": {
+          "type": "string",
+          "enum": [
+            "final_yield",
+            "work_per_yield",
+            "time_to_threshold",
+            "energy_efficiency"
+          ],
+          "description": "Primary leaderboard ranking metric"
+        },
+        "secondary_metrics": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["flip_count", "cumulative_work", "time_to_threshold", "defect_rate"]
+          }
+        },
+        "normalization": {
+          "type": "string",
+          "enum": ["raw", "min-max", "z-score"],
+          "default": "raw",
+          "description": "Score normalization method"
+        },
+        "penalties": {
+          "type": "array",
+          "description": "Penalties applied to score",
+          "items": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": ["timeout", "low_yield", "high_defect"]
+              },
+              "threshold": {"type": "number"},
+              "penalty_factor": {"type": "number"}
+            }
+          }
+        }
+      }
+    },
+
+    "constraints": {
+      "type": "object",
+      "description": "Limits on what policies can do",
+      "properties": {
+        "max_timesteps": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Maximum simulation timesteps"
+        },
+        "allowed_transitions": {
+          "type": "array",
+          "description": "Allowed state transitions (e.g., ['A-B', 'B-C'])",
+          "items": {"type": "string"}
+        },
+        "fixed_parameters": {
+          "type": "array",
+          "description": "Parameters participants cannot modify",
+          "items": {"type": "string"}
+        },
+        "tunable_parameters": {
+          "type": "array",
+          "description": "Parameters participants can optimize",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {"type": "string"},
+              "min": {"type": "number"},
+              "max": {"type": "number"},
+              "default": {"type": "number"}
+            }
+          }
+        }
+      }
+    },
+
+    "validation": {
+      "type": "object",
+      "description": "Validation criteria for submissions",
+      "properties": {
+        "min_replicas": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 1,
+          "description": "Number of independent runs to average"
+        },
+        "equilibration_time": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Timesteps to discard before measurement"
+        },
+        "correctness_checks": {
+          "type": "array",
+          "description": "Automated correctness validation",
+          "items": {
+            "type": "string",
+            "enum": ["energy_conservation", "molecule_count", "topology_valid"]
+          }
+        }
+      }
+    }
+  }
+}

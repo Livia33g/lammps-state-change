@@ -1,0 +1,131 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "State Change Policy Schema",
+  "description": "Declarative specification for molecular state-change policies",
+  "type": "object",
+  "required": ["policy_name", "policy_version", "state_transitions", "check_frequency"],
+  "properties": {
+    "policy_name": {
+      "type": "string",
+      "description": "Human-readable policy name"
+    },
+    "policy_version": {
+      "type": "string",
+      "description": "Version string (semver recommended)"
+    },
+    "check_frequency": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Check for state changes every N timesteps"
+    },
+    "state_transitions": {
+      "type": "array",
+      "description": "List of allowed state transition rules",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["from_species", "to_species", "trigger", "flip_probability"],
+        "properties": {
+          "from_species": {
+            "type": "string",
+            "description": "Source species label (e.g., 'A', 'B', 'C')"
+          },
+          "to_species": {
+            "type": "string",
+            "description": "Target species label"
+          },
+          "trigger": {
+            "type": "object",
+            "description": "Conditions required for state transition",
+            "oneOf": [
+              {
+                "required": ["contact_required"],
+                "properties": {
+                  "contact_required": {
+                    "type": "object",
+                    "required": ["species", "cutoff", "min_contacts"],
+                    "properties": {
+                      "species": {
+                        "type": "string",
+                        "description": "Species that must be in contact"
+                      },
+                      "cutoff": {
+                        "type": "number",
+                        "minimum": 0,
+                        "description": "Distance cutoff for contact detection"
+                      },
+                      "min_contacts": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "description": "Minimum number of contacts required (0 = no contact)"
+                      },
+                      "logic": {
+                        "type": "string",
+                        "enum": ["AND", "OR", "NOT"],
+                        "default": "AND",
+                        "description": "Logic for contact requirement"
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "required": ["always"],
+                "properties": {
+                  "always": {
+                    "type": "boolean",
+                    "const": true,
+                    "description": "Unconditional transition (time-based only)"
+                  }
+                }
+              }
+            ]
+          },
+          "flip_probability": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Probability of flip when conditions met (0-1)"
+          },
+          "hysteresis_checks": {
+            "type": "integer",
+            "minimum": 1,
+            "default": 1,
+            "description": "Number of consecutive checks required before flip"
+          },
+          "reversible": {
+            "type": "boolean",
+            "default": false,
+            "description": "Whether this transition can reverse (affects fuel consumption)"
+          },
+          "fuel_cost": {
+            "type": "number",
+            "minimum": 0,
+            "default": 1,
+            "description": "Relative fuel cost per flip (for scoring)"
+          }
+        }
+      }
+    },
+    "advanced": {
+      "type": "object",
+      "description": "Advanced options for expert users",
+      "properties": {
+        "random_seed": {
+          "type": "integer",
+          "default": 12345
+        },
+        "molecule_level": {
+          "type": "boolean",
+          "default": true,
+          "description": "Apply flips at molecule level (all patches in molecule change together)"
+        },
+        "mpi_strategy": {
+          "type": "string",
+          "enum": ["local_only", "ghost_aware"],
+          "default": "local_only"
+        }
+      }
+    }
+  }
+}
