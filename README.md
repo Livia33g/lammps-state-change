@@ -2,11 +2,6 @@
 
 **A Kaggle-style benchmark for out-of-equilibrium molecular computation**
 
-> *"Our ambitious goal is to discover problems where we can clearly show through theory and computation that molecular computation dominates standard computing protocols in the Pareto Frontier, in the scaling sense as problem size grows."*
-> — Research Proposal, Section: Research Plan
-
----
-
 ## 🎯 What Is This?
 
 This repository implements a **competition framework** for designing non-equilibrium molecular computing systems using state-changing patchy particles in LAMMPS.
