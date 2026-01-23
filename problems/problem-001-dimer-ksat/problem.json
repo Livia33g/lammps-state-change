@@ -1,0 +1,318 @@
+{
+  "problem_id": "problem-001-dimer-ksat",
+  "title": "Catalytic Species Conversion (A→C via B)",
+  "description": "Convert A-labeled monomers to C-labeled monomers using B as a catalyst. This is a simplified k-SAT encoding where A represents unsatisfied clauses and C represents satisfied clauses, with B acting as variable flips. Your goal is to maximize the fraction of C molecules while minimizing fuel consumption (flip events).",
+
+  "category": "species_conversion",
+
+  "proposal_context": {
+    "section": "3-SAT and Species Conversion",
+    "motivation": "Tests basic non-equilibrium fuel-driven computation. Molecular encoding where clause particles (A) change conformation depending on bound variable particles (B), biasing the system toward satisfying assignments.",
+    "measurement_perturbation_relaxation": {
+      "measurement": "Clause reads bound variable states",
+      "perturbation": "Selects variable to flip based on policy",
+      "relaxation": "Rebinding equilibration between flips"
+    }
+  },
+
+  "encoding": {
+    "geometry": "1core_3patch",
+    "geometry_description": "Single core (excluded volume) with 3 patches (binding sites). Core at origin, patches at (0.5, 0, 0.1), (0.5, 0.087, -0.05), (0.5, -0.087, -0.05).",
+
+    "species": [
+      {
+        "label": "core",
+        "lammps_type": 1,
+        "role": "core",
+        "description": "Rigid body core atom (excluded volume, unchanging)",
+        "mass": 0.6
+      },
+      {
+        "label": "A",
+        "lammps_type": 2,
+        "role": "patch",
+        "description": "A-labeled patch (initial state, can flip to C when in contact with B)",
+        "mass": 0.1,
+        "initial_state": true
+      },
+      {
+        "label": "B",
+        "lammps_type": 3,
+        "role": "patch",
+        "description": "B-labeled patch (catalyst, unchanging)",
+        "mass": 0.1,
+        "catalyst": true
+      },
+      {
+        "label": "C",
+        "lammps_type": 4,
+        "role": "patch",
+        "description": "C-labeled patch (target state, created by flips)",
+        "mass": 0.1,
+        "target_state": true
+      }
+    ],
+
+    "initial_composition": {
+      "A": 20,
+      "B": 10,
+      "C": 0
+    },
+
+    "system_parameters": {
+      "particle_count": 30,
+      "density": 0.001,
+      "box_shrink_factor": 0.5,
+      "temperature": 0.5,
+      "timestep": 0.005,
+      "core_diameter": 1.0,
+      "patch_radius": 0.1
+    },
+
+    "interactions": {
+      "description": "Only B-A and B-C attract (identical Morse potential). All other pairs neutral or repulsive (core-core).",
+      "pair_style": "hybrid morse/soft",
+      "core_core": {
+        "style": "soft",
+        "A": 500.0,
+        "cutoff": 1.0,
+        "description": "Excluded volume repulsion"
+      },
+      "attractive_pairs": [
+        {"pair": "B-A", "types": "2-3", "description": "Catalyst binds unsatisfied"},
+        {"pair": "B-C", "types": "3-4", "description": "Catalyst binds satisfied"}
+      ],
+      "neutral_pairs": ["core-patch", "A-A", "A-C", "C-C"]
+    }
+  },
+
+  "decoding": {
+    "yield_mode": "species_fraction",
+    "target": {
+      "species_label": "C",
+      "species_type": 4,
+      "description": "Fraction of molecules that are C (satisfied)"
+    },
+    "threshold": 0.6,
+    "success_criteria": "Reach ≥60% C-yield before timeout",
+    "measurement_interval": 1000,
+
+    "analysis_script": "analyze_trajectory_target_yield_and_work.py",
+    "analysis_args": {
+      "site_types": [2, 3, 4],
+      "bond_cutoff": 0.7,
+      "yield_mode": "species_fraction",
+      "species_label": "4"
+    },
+
+    "output_files": {
+      "trajectory": "dump.dimer_ksat_1core.lammpstrj",
+      "thermo": "lammps_stdout.log",
+      "events": "slurm_*.err"
+    }
+  },
+
+  "scoring": {
+    "primary_metric": "work_per_yield",
+    "description": "Minimize fuel consumed (ΔPE or flip count) per unit of C-yield achieved. Lower is better.",
+    "formula": "work_per_yield = cumulative_work / final_yield",
+
+    "secondary_metrics": [
+      {
+        "name": "final_yield",
+        "description": "Final fraction of C molecules at end of simulation",
+        "higher_is_better": true
+      },
+      {
+        "name": "flip_count",
+        "description": "Total number of state change events (fuel consumption proxy)",
+        "higher_is_better": false
+      },
+      {
+        "name": "time_to_threshold",
+        "description": "Timesteps required to reach 60% C-yield",
+        "higher_is_better": false
+      },
+      {
+        "name": "cumulative_work",
+        "description": "Sum of ΔPE between thermo outputs",
+        "higher_is_better": false
+      }
+    ],
+
+    "normalization": "raw",
+
+    "penalties": [
+      {
+        "type": "timeout",
+        "threshold": 2000000,
+        "penalty_factor": 0.0,
+        "description": "Simulation timeout (no additional penalty, just stop)"
+      },
+      {
+        "type": "low_yield",
+        "threshold": 0.1,
+        "penalty_factor": 10.0,
+        "description": "Penalize solutions that barely convert any A to C"
+      }
+    ],
+
+    "leaderboard_display": [
+      "work_per_yield",
+      "final_yield",
+      "flip_count",
+      "time_to_threshold"
+    ]
+  },
+
+  "constraints": {
+    "max_timesteps": 2000000,
+    "max_walltime": "24:00:00",
+
+    "allowed_transitions": [
+      {
+        "from": "A",
+        "to": "C",
+        "description": "Main reaction: unsatisfied → satisfied"
+      },
+      {
+        "from": "C",
+        "to": "A",
+        "description": "Reverse reaction (optional, lower probability)",
+        "optional": true
+      }
+    ],
+
+    "forbidden_transitions": [
+      "B → anything (B is catalyst, must stay B)",
+      "core → anything (cores never change)"
+    ],
+
+    "fixed_parameters": [
+      "geometry",
+      "particle_count",
+      "initial_composition",
+      "temperature",
+      "timestep",
+      "core_diameter",
+      "patch_radius"
+    ],
+
+    "tunable_parameters": [
+      {
+        "name": "morse_depth_AB",
+        "min": 0.1,
+        "max": 5.0,
+        "default": 1.0,
+        "description": "Morse potential depth for A-B (type 2-3) interaction",
+        "physical_meaning": "Binding strength between unsatisfied clause and catalyst"
+      },
+      {
+        "name": "morse_depth_BC",
+        "min": 0.1,
+        "max": 5.0,
+        "default": 1.0,
+        "description": "Morse potential depth for B-C (type 3-4) interaction",
+        "physical_meaning": "Binding strength between satisfied clause and catalyst"
+      },
+      {
+        "name": "morse_alpha",
+        "min": 1.0,
+        "max": 10.0,
+        "default": 5.0,
+        "description": "Morse potential width parameter (steepness)",
+        "physical_meaning": "How sharply attraction falls off with distance"
+      },
+      {
+        "name": "morse_r0",
+        "min": 0.0,
+        "max": 0.2,
+        "default": 0.0,
+        "description": "Morse potential equilibrium distance",
+        "physical_meaning": "Preferred binding distance (0 = patches can overlap)"
+      },
+      {
+        "name": "contact_cutoff",
+        "min": 0.5,
+        "max": 1.0,
+        "default": 0.7,
+        "description": "Distance threshold for state change trigger",
+        "physical_meaning": "How close patches must be to trigger flip",
+        "constraint": "Should match morse_rcut for consistency"
+      }
+    ]
+  },
+
+  "validation": {
+    "min_replicas": 1,
+    "official_replicas": 5,
+    "equilibration_time": 10000,
+    "discard_equilibration": true,
+
+    "correctness_checks": [
+      {
+        "check": "molecule_count",
+        "description": "Total molecules must stay constant (30)"
+      },
+      {
+        "check": "topology_valid",
+        "description": "Each molecule has 1 core + 3 patches"
+      },
+      {
+        "check": "B_unchanged",
+        "description": "All B molecules must remain B (catalyst invariant)"
+      },
+      {
+        "check": "energy_reasonable",
+        "description": "No sudden energy spikes (indicates numerical instability)"
+      }
+    ],
+
+    "required_outputs": [
+      "dump.dimer_ksat_1core.lammpstrj",
+      "lammps_stdout.log",
+      "slurm_*.err"
+    ]
+  },
+
+  "starter_template": {
+    "policy_file": "baseline_policy.json",
+    "params_file": "baseline_params.json",
+    "instructions": "See starter_template/README.md"
+  },
+
+  "references": {
+    "proposal_figure": "Figure 3 (3-SAT encoding and policy comparison)",
+    "related_problems": [
+      "problem-003-hamiltonian-path (graph encoding)",
+      "problem-004-frustrated-sampling (directional sampling)"
+    ],
+    "baseline_performance": {
+      "random_policy": {
+        "final_yield": 0.45,
+        "work_per_yield": 15.2,
+        "description": "Random flip when in contact (no intelligence)"
+      },
+      "greedy_policy": {
+        "final_yield": 0.72,
+        "work_per_yield": 8.3,
+        "description": "Always flip A→C when touching B, hysteresis=5"
+      }
+    }
+  },
+
+  "difficulty": {
+    "level": "beginner",
+    "estimated_time": "2-4 hours",
+    "skills_required": [
+      "Understanding JSON schema",
+      "Basic probability tuning",
+      "Hysteresis concept"
+    ],
+    "skills_developed": [
+      "Policy design for non-equilibrium systems",
+      "Energy-yield tradeoff optimization",
+      "Contact-based trigger logic"
+    ]
+  }
+}
