@@ -1,0 +1,9 @@
+{
+  "comment": "Tunable parameters for problem-001-dimer-ksat. Adjust these to optimize performance.",
+
+  "morse_depth_AB": 1.0,
+  "morse_depth_BC": 1.0,
+  "morse_alpha": 5.0,
+  "morse_r0": 0.0,
+  "contact_cutoff": 0.7
+}

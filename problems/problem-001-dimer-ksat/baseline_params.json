@@ -1,0 +1,89 @@
+{
+  "comment": "Baseline tunable parameters for problem-001-dimer-ksat",
+  "description": "These are the default parameters used in the reference implementation. Participants can tune these to improve performance.",
+
+  "interaction_parameters": {
+    "morse_depth_AB": {
+      "value": 1.0,
+      "description": "Morse potential depth for A-B (type 2-3) interaction",
+      "physical_meaning": "Binding strength between unsatisfied clause and catalyst",
+      "tuning_hint": "Increase to favor A-B contacts (more flip opportunities), decrease if too sticky"
+    },
+    "morse_depth_BC": {
+      "value": 1.0,
+      "description": "Morse potential depth for B-C (type 3-4) interaction",
+      "physical_meaning": "Binding strength between satisfied clause and catalyst",
+      "tuning_hint": "If D_BC < D_AB, C's will unbind faster, allowing B to find new A's"
+    },
+    "morse_alpha": {
+      "value": 5.0,
+      "description": "Morse potential width parameter (steepness)",
+      "physical_meaning": "How sharply attraction falls off with distance",
+      "tuning_hint": "Higher = sharper cutoff, lower = longer-range attraction"
+    },
+    "morse_r0": {
+      "value": 0.0,
+      "description": "Morse potential equilibrium distance",
+      "physical_meaning": "Preferred binding distance (0 = patches can overlap)",
+      "tuning_hint": "Keep at 0 unless you want steric constraints"
+    }
+  },
+
+  "state_change_parameters": {
+    "contact_cutoff": {
+      "value": 0.7,
+      "description": "Distance threshold for detecting patch contacts",
+      "physical_meaning": "How close patches must be to trigger state change",
+      "constraint": "Should be ≤ morse_rcut for consistency",
+      "tuning_hint": "Match to morse_rcut = 7 × patch_radius"
+    }
+  },
+
+  "system_parameters_readonly": {
+    "comment": "These cannot be changed (fixed by problem definition)",
+    "temperature": 0.5,
+    "density": 0.001,
+    "box_shrink": 0.5,
+    "timestep": 0.005,
+    "n_A": 20,
+    "n_B": 10,
+    "n_C": 0,
+    "core_diameter": 1.0,
+    "patch_radius": 0.1,
+    "core_mass": 0.6,
+    "patch_mass": 0.1
+  },
+
+  "tuning_strategies": {
+    "maximize_encounters": {
+      "description": "Increase flip opportunities by making A-B binding stronger",
+      "adjustments": {
+        "morse_depth_AB": 1.5,
+        "morse_depth_BC": 0.8,
+        "contact_cutoff": 0.8
+      }
+    },
+    "prevent_sticking": {
+      "description": "Reduce long-lived A-B or C-B bonds to increase turnover",
+      "adjustments": {
+        "morse_depth_AB": 0.7,
+        "morse_depth_BC": 0.5,
+        "morse_alpha": 7.0
+      }
+    },
+    "longer_range": {
+      "description": "Increase effective interaction range",
+      "adjustments": {
+        "morse_alpha": 3.0,
+        "contact_cutoff": 0.9
+      }
+    }
+  },
+
+  "metadata": {
+    "problem": "problem-001-dimer-ksat",
+    "version": "1.0.0",
+    "date": "2026-01-23",
+    "author": "baseline"
+  }
+}

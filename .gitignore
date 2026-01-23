@@ -47,6 +47,10 @@ back/**
 legacy/
 legacy/**
 
+# User submissions (managed separately)
+submissions/
+!submissions/.gitkeep
+
 # Python cache
 __pycache__/
 *.pyc
