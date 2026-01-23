@@ -4,10 +4,6 @@ Welcome to the molecular computing benchmark! This competition explores **what c
 
 ## 🎯 Competition Vision
 
-From our research proposal:
-
-> *"The aim of this proposal is to make substantial progress towards instantiating molecular computation as a viable path to computing technology. We aim to identify the essential physical properties that enable molecular systems to solve computationally hard problems."*
-
 Our approach decomposes molecular computation into three essential stages:
 
 1. **ENCODE** - Problem variables/constraints → molecular components
