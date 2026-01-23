@@ -21,15 +21,13 @@ Design a **state-change policy** that efficiently converts A-labeled monomers to
 
 ---
 
-## 📖 Connection to Research Proposal
-
 This problem implements the **3-SAT encoding**:
 
 > *"Variables are encoded as particles with two internal states (''true'' and ''false''); clauses are encoded as particles with three binding sites, each corresponding to one variable. An unsatisfied clause particle can consume fuel to flip the state of a bound variable from unsatisfying to satisfying."*
 
 ### Molecular Encoding
 
-| Proposal Concept | Implementation |
+| Concept | Implementation |
 |-----------------|----------------|
 | **Variable (true/false)** | Not explicitly represented (simplified) |
 | **Clause (satisfied/unsatisfied)** | A-patch (unsatisfied), C-patch (satisfied) |
@@ -39,7 +37,6 @@ This problem implements the **3-SAT encoding**:
 
 ### Measurement → Perturbation → Relaxation
 
-From Table 1 in the proposal:
 
 | Component | Implementation |
 |-----------|----------------|
@@ -76,10 +73,6 @@ Patch 3: (0.5, -0.087, -0.05)
 **All other pairs:** Neutral (D0=0) except core-core repulsion (soft potential)
 
 ### Why This Design?
-
-From the proposal:
-
-> *"Since Hopfield's foundational work on kinetic proofreading, it has been understood that allosteric interactions enhance computational capacity beyond equilibrium bounds, provided an energy cost is paid."*
 
 The **non-equilibrium driving** (A→C flips) allows the system to:
 1. Escape local minima where A's are stuck
@@ -187,7 +180,7 @@ Modify `params.json`:
 work_per_yield = cumulative_work / final_yield
 ```
 
-Lower is better! This captures the **energy-yield tradeoff** from the proposal's Pareto frontier.
+Lower is better! This captures the **energy-yield tradeoff**
 
 ### Baseline Comparison
 
@@ -200,10 +193,7 @@ Lower is better! This captures the **energy-yield tradeoff** from the proposal's
 ---
 
 ## 🧠 Design Principles
-
-From the proposal (Section: Optimization Methods):
-
-> *"The non-equilibrium policy can be optimized with policy gradients. [...] Good policies balance exploration (try new configurations) vs. exploitation (reinforce promising paths)."*
+The non-equilibrium policy can be optimized with policy gradients. [...] Good policies balance exploration (try new configurations) vs. exploitation (reinforce promising paths).
 
 ### Key Insights
 
@@ -304,15 +294,6 @@ python analyze_trajectory_target_yield_and_work.py \
 Check `analysis/my_run.png` for yield vs. time curve.
 
 ---
-
-## 📚 Further Reading
-
-**Proposal sections:**
-- Section 3 (Physical Primitives) - Why non-equilibrium?
-- Section 4 (Benchmark Challenges) - 3-SAT encoding
-- Section 5 (Theory) - π(φ,θ) optimization framework
-- Figure 3 - Policy comparison on 3-SAT instances
-
 **Code references:**
 - `dimer_ksat/variants/1core/generate.py` - System generator
 - `dimer_ksat/variants/1core/fix_state_change_dimer_ksat.cpp` - Reference C++ fix
