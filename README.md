@@ -2,11 +2,6 @@
 
 **A Kaggle-style benchmark for out-of-equilibrium molecular computation**
 
-> *"Our ambitious goal is to discover problems where we can clearly show through theory and computation that molecular computation dominates standard computing protocols in the Pareto Frontier, in the scaling sense as problem size grows."*
-> — Research Proposal, Section: Research Plan
-
----
-
 ## 🎯 What Is This?
 
 This repository implements a **competition framework** for designing non-equilibrium molecular computing systems using state-changing patchy particles in LAMMPS.
@@ -159,7 +154,7 @@ No single "winner" - multiple optimal strategies in different regimes!
 
 ---
 
-## 📊 Current Problems
+## Current Problems
 
 ### Problem 001: Catalytic Species Conversion
 **Difficulty:** Beginner | **Status:** Active | **Design Freedom:** Policy + Parameters
@@ -205,7 +200,7 @@ See [docs/DESIGN_FREEDOM_LEVELS.md](docs/DESIGN_FREEDOM_LEVELS.md) for detailed 
 
 ---
 
-## 🔬 Technical Innovation: Declarative Policies
+## Technical Innovation: Declarative Policies
 
 **No C++ coding required!** Participants submit JSON policies that we auto-generate into production C++ LAMMPS fixes.
 
@@ -350,24 +345,13 @@ If you use this framework in your research, please cite:
   note = {Kaggle-style benchmark for non-equilibrium molecular computation}
 }
 ```
-
-And the research proposal:
-```bibtex
-@article{brenner2026molecular,
-  title = {Towards Design Principles for Molecular Computation},
-  author = {Brenner, Michael P.},
-  year = {2026},
-  journal = {In preparation}
-}
-```
-
 ---
 
 ## 📬 Contact & Community
 
 - **Issues**: [GitHub Issues](https://github.com/Livia33g/lammps-state-change/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/Livia33g/lammps-state-change/discussions)
-- **Email**: [your-email@example.com]
+- **Email**: [liviaguttieres@g.harvard.edu]
 
 ---
 

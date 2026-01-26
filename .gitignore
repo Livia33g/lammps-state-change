@@ -47,9 +47,35 @@ back/**
 legacy/
 legacy/**
 
-# User submissions (managed separately)
-submissions/
+# User submissions (local development only - do not push to remote)
+# First, allow documentation files (must come before ignore patterns)
 !submissions/.gitkeep
+!submissions/README.md
+!submissions/**/EXAMPLE_STRUCTURE.md
+# Now ignore all competitor submission directories and files
+submissions/
+# Explicitly ignore all actual submission files (policy.json, params.json, etc.)
+submissions/**/policy.json
+submissions/**/params.json
+submissions/**/submission.json
+# Ignore all generated files within submissions
+submissions/**/generated/
+submissions/**/simulation/
+submissions/**/results/
+
+# Test outputs (local development only - do not push to remote)
+tests/
+!tests/.gitkeep
+!tests/**/README.md
+# Ignore all generated files within tests
+tests/**/generated/
+tests/**/simulation/
+tests/**/temp_params.json
+
+# Build directories (temporary compilation artifacts)
+.builds/
+*.build/
+build_*/
 
 # Python cache
 __pycache__/

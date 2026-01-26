@@ -4,10 +4,6 @@ Welcome to the molecular computing benchmark! This competition explores **what c
 
 ## 🎯 Competition Vision
 
-From our research proposal:
-
-> *"The aim of this proposal is to make substantial progress towards instantiating molecular computation as a viable path to computing technology. We aim to identify the essential physical properties that enable molecular systems to solve computationally hard problems."*
-
 Our approach decomposes molecular computation into three essential stages:
 
 1. **ENCODE** - Problem variables/constraints → molecular components
@@ -31,7 +27,6 @@ The key innovation: particles can **change their state during simulation** based
 
 ### Why Non-Equilibrium?
 
-As proven in our recent work (see proposal Figure 2):
 - **Equilibrium self-assembly** fails for complex structures (yield degrades sharply)
 - **Hamiltonian Path Problems** solvable only up to ~19 nodes at equilibrium
 - **Non-equilibrium driving** (fuel-powered state changes) overcomes these limits
@@ -127,9 +122,8 @@ We'll run your simulation on our cluster and update the leaderboard.
 
 ## 🏆 Scoring: The Pareto Frontier
 
-From the proposal:
 
-> *"Within this model system, we aim to characterize the fundamental tradeoffs between **time, memory, and energy consumption** required to perform a given computational task."*
+Within this model system, we aim to characterize the fundamental tradeoffs between **time, memory, and energy consumption** required to perform a given computational task.
 
 You're optimized on multiple objectives:
 
@@ -307,9 +301,7 @@ A: After submission deadline, all policies become public for learning.
 
 ## 🌟 Competition Goals
 
-From the proposal:
-
-> *"Our ambitious goal is to discover problems where we can clearly show through theory and computation that **molecular computation dominates standard computing protocols in the Pareto Frontier**, in the scaling sense as problem size grows."*
+Our ambitious goal is to discover problems where we can clearly show through theory and computation that **molecular computation dominates standard computing protocols in the Pareto Frontier**, in the scaling sense as problem size grows.
 
 By participating, you're helping answer:
 1. Which problems are uniquely suited to molecular computing?
