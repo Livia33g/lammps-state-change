@@ -19,7 +19,8 @@ BLUE='\033[0;34m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
-PRIVATE_REPO_URL="https://github.com/Livia33g/lammps-state-change-private.git"
+PRIVATE_REPO_SSH="git@github.com:Livia33g/lammps-state-change-private.git"
+PRIVATE_REPO_HTTPS="https://github.com/Livia33g/lammps-state-change-private.git"
 PRIVATE_REPO_DIR="$HOME/lammps-state-change-private"
 
 echo -e "${BLUE}=========================================${NC}"
@@ -35,8 +36,65 @@ if [ -d "$PRIVATE_REPO_DIR" ]; then
     git pull
 else
     echo "Cloning private repository..."
+    echo ""
+    echo "Choose cloning method:"
+    echo "  1. SSH (recommended if you have SSH keys set up)"
+    echo "  2. HTTPS (requires personal access token)"
+    echo "  3. Manual (I'll set it up myself)"
+    echo ""
+    read -p "Enter choice [1-3]: " choice
+
     cd ~
-    git clone "$PRIVATE_REPO_URL"
+
+    case $choice in
+        1)
+            echo "Using SSH..."
+            git clone "$PRIVATE_REPO_SSH"
+            if [ $? -ne 0 ]; then
+                echo ""
+                echo -e "${RED}SSH clone failed. You may need to set up SSH keys.${NC}"
+                echo "See: https://docs.github.com/en/authentication/connecting-to-github-with-ssh"
+                echo ""
+                echo "Or run this script again and choose option 2 (HTTPS) or 3 (Manual)"
+                exit 1
+            fi
+            ;;
+        2)
+            echo "Using HTTPS..."
+            echo ""
+            echo -e "${YELLOW}You'll need a GitHub Personal Access Token${NC}"
+            echo "Create one at: https://github.com/settings/tokens"
+            echo "Scopes needed: repo (full control of private repositories)"
+            echo ""
+            read -p "Press Enter when ready..."
+
+            git clone "$PRIVATE_REPO_HTTPS"
+            if [ $? -ne 0 ]; then
+                echo ""
+                echo -e "${RED}HTTPS clone failed.${NC}"
+                echo "Make sure you entered your personal access token (not password)"
+                echo ""
+                echo "Or run this script again and choose option 3 (Manual)"
+                exit 1
+            fi
+            ;;
+        3)
+            echo "Manual setup selected."
+            echo ""
+            echo "Please clone the repository manually:"
+            echo ""
+            echo "  cd ~"
+            echo "  git clone git@github.com:Livia33g/lammps-state-change-private.git"
+            echo ""
+            echo "Then run this script again."
+            exit 0
+            ;;
+        *)
+            echo "Invalid choice. Exiting."
+            exit 1
+            ;;
+    esac
+
     cd "$PRIVATE_REPO_DIR"
 fi
 
