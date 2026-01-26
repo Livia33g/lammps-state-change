@@ -77,6 +77,11 @@ tests/**/temp_params.json
 *.build/
 build_*/
 
+# CRITICAL: Moderator-only directories - NEVER commit these!
+submissions-inbox/
+submissions-private/
+test_submission/
+
 # Python cache
 __pycache__/
 *.pyc

@@ -21,13 +21,17 @@ Design a **state-change policy** that efficiently converts A-labeled monomers to
 
 ---
 
-This problem implements the **3-SAT encoding**:
+## 📖 Theoretical Background
 
-> *"Variables are encoded as particles with two internal states (''true'' and ''false''); clauses are encoded as particles with three binding sites, each corresponding to one variable. An unsatisfied clause particle can consume fuel to flip the state of a bound variable from unsatisfying to satisfying."*
+This problem is inspired by **3-SAT clause satisfaction**, where:
+
+> Variables have internal states (true/false), and clauses contain multiple variables. An unsatisfied clause can consume energy (fuel) to flip a bound variable's state, biasing the system toward satisfying assignments.
 
 ### Molecular Encoding
 
-| Concept | Implementation |
+In this simplified encoding:
+
+| Abstract Concept | Molecular Implementation |
 |-----------------|----------------|
 | **Variable (true/false)** | Not explicitly represented (simplified) |
 | **Clause (satisfied/unsatisfied)** | A-patch (unsatisfied), C-patch (satisfied) |
@@ -35,14 +39,15 @@ This problem implements the **3-SAT encoding**:
 | **Fuel consumption** | Each A→C flip event |
 | **Target distribution** | High fraction of satisfied clauses (C) |
 
-### Measurement → Perturbation → Relaxation
+### Computational Cycle
 
+The system operates via **Measurement → Perturbation → Relaxation**:
 
 | Component | Implementation |
 |-----------|----------------|
-| **Measurement 𝓜** | Detect when A-patch is within cutoff of B-patch |
-| **Perturbation π** | Flip A→C with probability `pflip` (your policy) |
-| **Relaxation ℛ** | LAMMPS rigid-body dynamics between checks |
+| **Measurement (𝓜)** | Detect when A-patch is within cutoff of B-patch |
+| **Perturbation (π)** | Flip A→C with probability `pflip` (your policy) |
+| **Relaxation (ℛ)** | LAMMPS rigid-body dynamics between checks |
 
 Your policy defines **π(j|s,H)** - the decision rule for when and how to flip states.
 
@@ -180,7 +185,7 @@ Modify `params.json`:
 work_per_yield = cumulative_work / final_yield
 ```
 
-Lower is better! This captures the **energy-yield tradeoff**
+Lower is better! This captures the **energy-yield tradeoff** fundamental to molecular computing.
 
 ### Baseline Comparison
 

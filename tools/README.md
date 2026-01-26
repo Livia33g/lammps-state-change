@@ -1,166 +1,84 @@
-# Regulator Tools
+# Moderator Tools
 
-These tools are for **competition regulators only** (not participants). They help process and manage submissions locally.
+This directory contains automation scripts for processing submissions and maintaining the competition.
 
-## Tools Overview
+---
 
-### `import_submission.sh`
-Import competitor submission files (zip/tar/directory) and organize by problem number.
+## 📋 Tool Overview
 
-**Usage:**
-```bash
-tools/import_submission.sh submission_001_username.zip
-```
+| Tool | Purpose | Usage |
+|------|---------|-------|
+| `validate_submission.py` | Validate submission format and security | Run before accepting submissions |
+| `process_new_submissions.sh` | Batch process submissions from inbox | Run periodically to handle new submissions |
+| `evaluate_submission.slurm` | Evaluate single submission on cluster | Called by process script or manually |
+| `update_leaderboard.py` | Update leaderboard from scores | Run after evaluation completes |
 
-**What it does:**
-- Extracts problem number from filename (e.g., "001")
-- Extracts username from filename or submission.json
-- Organizes into: `submissions/problem-001-dimer-ksat/username/`
+---
 
-### `test_pipeline.sh`
-Test the pipeline with baseline policies before processing real submissions.
+## 🔧 Individual Tools
 
-**Usage:**
-```bash
-tools/test_pipeline.sh [problem_id] [test_name]
-tools/test_pipeline.sh problem-001-dimer-ksat baseline_test
-```
+### 1. validate_submission.py
 
-**Output:** `tests/{problem_id}/{test_name}/`
-
-### `process_submission.sh`
-Process a single competitor submission: validate, generate C++ fix, generate LAMMPS files.
+**Purpose:** Validate submission structure, JSON syntax, and security before processing.
 
 **Usage:**
 ```bash
-tools/process_submission.sh submissions/problem-001-dimer-ksat/competitor_username/
+python3 tools/validate_submission.py submissions-inbox/alice_problem-001/
 ```
 
-**What it does:**
-1. Validates submission (JSON format, schema compliance)
-2. Generates C++ fix files → `submissions/.../generated/`
-3. Generates LAMMPS input files → `submissions/.../simulation/`
-4. Creates `results/` directory for outputs
+**Checks:**
+- Required files present (`policy.json`, `submission.json`)
+- Valid JSON syntax
+- Schema compliance
+- Parameter ranges
+- Suspicious content detection
+- File size limits
 
-### `process_all_submissions.sh`
-Process all submissions for a given problem.
+**Exit codes:**
+- `0`: Validation passed
+- `1`: Validation failed
+
+**Example output:**
+```
+✓ Found policy.json
+✓ Found submission.json
+✓ Valid JSON syntax
+✓ Policy schema valid
+✓ Parameters within allowed ranges
+✓ No security issues detected
+
+Submission is valid!
+```
+
+---
+
+### 2. process_new_submissions.sh
+
+**Purpose:** Automatically process all submissions in the inbox directory.
 
 **Usage:**
 ```bash
-tools/process_all_submissions.sh problem-001-dimer-ksat
+# Process all submissions in submissions-inbox/
+bash tools/process_new_submissions.sh
 ```
 
-**What it does:**
-- Finds all competitor directories in `submissions/{problem_id}/`
-- Processes each one using `process_submission.sh`
-- Reports success/failure counts
-
-### `analyze_submission_results.sh`
-Analyze simulation results using problem-specific analysis script.
-
-**Usage:**
-```bash
-tools/analyze_submission_results.sh submissions/problem-001-dimer-ksat/username/
+**Directory structure:**
+```
+submissions-inbox/
+├── alice_problem-001/
+│   ├── policy.json
+│   ├── params.json
+│   └── submission.json
+└── bob_problem-001/
+    └── ...
 ```
 
-**What it does:**
-- Calls `problems/{problem_id}/analyze_submission.sh`
-- Problem-specific script generates:
-  - `results/analysis/timeseries.csv`
-  - `results/analysis/leaderboard_row.csv`
+**Workflow:**
+1. Scans `submissions-inbox/` for new submissions
+2. Validates each submission
+3. Moves valid submissions to `submissions-private/`
+4. Submits to cluster via SLURM
+5. Archives processed submissions to `.processed/`
 
-### `update_leaderboard.sh`
-Aggregate all submission results into problem leaderboard.
-
-**Usage:**
-```bash
-tools/update_leaderboard.sh problem-001-dimer-ksat
+**Output:**
 ```
-
-**What it does:**
-- Collects all `leaderboard_row.csv` files from submissions
-- Aggregates into `problems/{problem_id}/leaderboard.csv`
-- Sorts by primary metric
-
-### `compile_and_run_batch.sh`
-Efficiently compile LAMMPS with fixes for multiple submissions using policy hash reuse.
-
-**Usage:**
-```bash
-export LAMMPS_DIR=/path/to/lammps
-tools/compile_and_run_batch.sh problem-001-dimer-ksat --compile-only
-```
-
-**What it does:**
-- Processes all submissions (generates C++ files)
-- Groups by policy hash (same policy = one compilation)
-- Compiles in isolated build directories
-- Automatically cleans up (saves disk space)
-
-**Options:**
-- `--compile-only` - Only compile, don't run simulations
-- `--run` - Run simulations after compilation
-- `--username NAME` - Process only specific username(s)
-- `--keep-builds` - Keep build directories (for debugging)
-
-### `process_efficiently.sh`
-Wrapper providing different processing strategies (one-by-one, batch-shared, batch-isolated).
-
-**Usage:**
-```bash
-tools/process_efficiently.sh problem-001-dimer-ksat [strategy]
-```
-
-**Strategies:**
-- `one-by-one` - Process sequentially, clean up after each
-- `batch-shared` - Process all, reuse builds for same policies (default)
-- `batch-isolated` - Process all, separate build per submission
-
-## Important Notes
-
-- **Local Development Only**: These tools and their outputs are for local use
-- **Not Pushed to Remote**: `submissions/` and `tests/` directories are gitignored
-- **Results Later**: After processing and running simulations, results will be aggregated into leaderboards (separate process)
-
-## Workflow
-
-1. **Test pipeline** (before competition):
-   ```bash
-   tools/test_pipeline.sh problem-001-dimer-ksat baseline_test
-   ```
-
-2. **Receive submissions** (competitors create directories):
-   - `submissions/problem-001-dimer-ksat/competitor_alice/`
-   - `submissions/problem-001-dimer-ksat/competitor_bob/`
-
-3. **Process submissions**:
-   ```bash
-   tools/process_all_submissions.sh problem-001-dimer-ksat
-   ```
-
-4. **Review generated files**:
-   - Check `submissions/.../generated/` for C++ fixes
-   - Check `submissions/.../simulation/` for LAMMPS inputs
-
-5. **Run simulations** (separate process, not automated here)
-
-6. **Aggregate results** (later, separate process):
-   - Extract scores from simulation outputs
-   - Update `problems/{problem_id}/leaderboard.csv`
-
-## Directory Structure
-
-After processing, each submission contains:
-
-```
-submissions/problem-001-dimer-ksat/competitor_username/
-├── submission.json          # Original (from competitor)
-├── policy.json              # Original (from competitor)
-├── params.json              # Original (optional)
-├── generated/               # Auto-generated C++ (gitignored)
-├── simulation/              # Auto-generated LAMMPS (gitignored)
-└── results/                 # Simulation outputs (gitignored)
-```
-
-All generated files are gitignored - only the original submission files would be tracked (if you choose to track them separately).
-

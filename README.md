@@ -157,11 +157,12 @@ No single "winner" - multiple optimal strategies in different regimes!
 ## Current Problems
 
 ### Problem 001: Catalytic Species Conversion
-**Difficulty:** Beginner | **Status:** Active
+**Difficulty:** Beginner | **Status:** Active | **Design Freedom:** Policy + Parameters
 
 Convert A→C using B as catalyst. Simplified k-SAT encoding testing basic non-equilibrium fuel-driven computation.
 
-- **Encoding:** 30 monomers (20 A, 10 B, 0 C initially)
+- **Encoding:** 30 monomers (20 A, 10 B, 0 C initially) [Fixed]
+- **Your design:** State-change policy + interaction parameters [Tunable]
 - **Goal:** Maximize C-yield, minimize flips
 - **Baseline:** Greedy policy achieves `yield=0.72`, `work/yield=8.3`
 - **Your challenge:** Beat the baseline!
@@ -171,12 +172,31 @@ Convert A→C using B as catalyst. Simplified k-SAT encoding testing basic non-e
 ### Problem 002: Octahedron Assembly
 **Difficulty:** Intermediate | **Status:** Coming Soon
 
-Exact structure assembly with proofreading. From proposal Figure 2.
+Exact structure assembly with proofreading.
 
 ### Problem 003: Hamiltonian Path
 **Difficulty:** Advanced | **Status:** Coming Soon
 
-Graph search encoding. From proposal Figure 2 (equilibrium limit: 19 nodes max).
+Graph search encoding (equilibrium limit: 19 nodes max).
+
+---
+
+## 🎨 Design Freedom Levels
+
+Different problems offer different levels of creative freedom:
+
+| Level | What You Design | What's Fixed | Example |
+|-------|----------------|--------------|---------|
+| **Policy Only** | State transition rules | Encoding + parameters | "Design when to flip" |
+| **Policy + Parameters** ⭐ | Transitions + interaction strengths | Encoding structure | Problem-001 |
+| **Policy + Encoding** | Transitions + molecular design | Computational goal | "Design molecules for 3-SAT" |
+| **Full System** | Everything | Only the abstract task | "Design sampler for Ising model" |
+
+See [docs/DESIGN_FREEDOM_LEVELS.md](docs/DESIGN_FREEDOM_LEVELS.md) for detailed explanation.
+
+**Problem-001 is Level 2:** You design the policy (when/how to flip) and can tune interaction strengths (morse depths, cutoffs), but the molecular encoding (species A/B/C, geometry, composition) is fixed.
+
+**Future problems** will explore Level 3 (design your own molecular encoding) and Level 4 (full system design).
 
 ---
 

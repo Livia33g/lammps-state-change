@@ -194,6 +194,40 @@
       }
     },
 
+    "design_freedom": {
+      "type": "object",
+      "description": "What aspects participants are allowed to design/modify",
+      "required": ["level"],
+      "properties": {
+        "level": {
+          "type": "string",
+          "enum": ["policy_only", "policy_and_parameters", "policy_and_encoding", "full_system"],
+          "description": "Design freedom level: policy_only (fixed encoding), policy_and_parameters (tune interactions), policy_and_encoding (design species/geometry), full_system (open-ended)"
+        },
+        "allowed_modifications": {
+          "type": "array",
+          "description": "Specific aspects users can modify",
+          "items": {
+            "type": "string",
+            "enum": [
+              "state_transitions",
+              "interaction_strengths",
+              "contact_cutoffs",
+              "initial_composition",
+              "geometry_choice",
+              "species_definition",
+              "interaction_topology",
+              "particle_count"
+            ]
+          }
+        },
+        "description": {
+          "type": "string",
+          "description": "Explanation of what participants can design for this problem"
+        }
+      }
+    },
+
     "constraints": {
       "type": "object",
       "description": "Limits on what policies can do",
