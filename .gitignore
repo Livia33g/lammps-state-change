@@ -72,6 +72,11 @@ tests/**/generated/
 tests/**/simulation/
 tests/**/temp_params.json
 
+# Build directories (temporary compilation artifacts)
+.builds/
+*.build/
+build_*/
+
 # Python cache
 __pycache__/
 *.pyc

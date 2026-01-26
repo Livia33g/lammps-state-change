@@ -82,6 +82,40 @@ tools/update_leaderboard.sh problem-001-dimer-ksat
 - Aggregates into `problems/{problem_id}/leaderboard.csv`
 - Sorts by primary metric
 
+### `compile_and_run_batch.sh`
+Efficiently compile LAMMPS with fixes for multiple submissions using policy hash reuse.
+
+**Usage:**
+```bash
+export LAMMPS_DIR=/path/to/lammps
+tools/compile_and_run_batch.sh problem-001-dimer-ksat --compile-only
+```
+
+**What it does:**
+- Processes all submissions (generates C++ files)
+- Groups by policy hash (same policy = one compilation)
+- Compiles in isolated build directories
+- Automatically cleans up (saves disk space)
+
+**Options:**
+- `--compile-only` - Only compile, don't run simulations
+- `--run` - Run simulations after compilation
+- `--username NAME` - Process only specific username(s)
+- `--keep-builds` - Keep build directories (for debugging)
+
+### `process_efficiently.sh`
+Wrapper providing different processing strategies (one-by-one, batch-shared, batch-isolated).
+
+**Usage:**
+```bash
+tools/process_efficiently.sh problem-001-dimer-ksat [strategy]
+```
+
+**Strategies:**
+- `one-by-one` - Process sequentially, clean up after each
+- `batch-shared` - Process all, reuse builds for same policies (default)
+- `batch-isolated` - Process all, separate build per submission
+
 ## Important Notes
 
 - **Local Development Only**: These tools and their outputs are for local use

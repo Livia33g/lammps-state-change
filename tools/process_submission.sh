@@ -2,13 +2,16 @@
 # Process a competitor submission: validate, generate C++ fix, generate simulation files
 #
 # Usage:
-#   tools/process_submission.sh submissions/problem-001-dimer-ksat/competitor_username/
+#   tools/process_submission.sh submissions/problem-001-dimer-ksat/competitor_username/ [--force]
 #
 # This script:
 #   1. Validates the submission (JSON format, schema compliance)
-#   2. Generates C++ fix from policy.json
-#   3. Generates LAMMPS system files from problem.json + policy.json + params.json
+#   2. Generates C++ fix from policy.json (skips if already exists)
+#   3. Generates LAMMPS system files (skips if already exists)
 #   4. Creates organized directory structure
+#
+# Options:
+#   --force    Force regeneration even if files already exist
 
 set -e  # Exit on error
 
@@ -17,9 +20,26 @@ cd "$SCRIPT_DIR"
 
 # Parse arguments
 SUBMISSION_DIR="${1}"
+FORCE=false
+
+# Parse options
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --force)
+            FORCE=true
+            shift
+            ;;
+        *)
+            if [ -z "$SUBMISSION_DIR" ]; then
+                SUBMISSION_DIR="$1"
+            fi
+            shift
+            ;;
+    esac
+done
 
 if [ -z "$SUBMISSION_DIR" ]; then
-    echo "Usage: tools/process_submission.sh submissions/problem-XXX/competitor_username/"
+    echo "Usage: tools/process_submission.sh submissions/problem-XXX/competitor_username/ [--force]"
     exit 1
 fi
 
@@ -64,6 +84,32 @@ echo "Competitor: $COMPETITOR_NAME"
 echo "Directory:  $SUBMISSION_DIR"
 echo ""
 
+# Check if already processed
+GENERATED_EXISTS=false
+SIMULATION_EXISTS=false
+
+if [ -d "$SUBMISSION_DIR/generated" ] && [ -n "$(find "$SUBMISSION_DIR/generated" -name "*.h" -o -name "*.cpp" 2>/dev/null)" ]; then
+    GENERATED_EXISTS=true
+fi
+
+if [ -d "$SUBMISSION_DIR/simulation" ] && [ -n "$(find "$SUBMISSION_DIR/simulation" -name "data.*" -o -name "in.*" 2>/dev/null)" ]; then
+    SIMULATION_EXISTS=true
+fi
+
+if [ "$GENERATED_EXISTS" = true ] && [ "$SIMULATION_EXISTS" = true ] && [ "$FORCE" = false ]; then
+    echo "✓ Submission already processed (generated files exist)"
+    echo "  Skipping regeneration. Use --force to regenerate."
+    echo ""
+    echo "Existing files:"
+    echo "  Generated: $SUBMISSION_DIR/generated/"
+    echo "  Simulation: $SUBMISSION_DIR/simulation/"
+    exit 0
+fi
+
+if [ "$FORCE" = true ]; then
+    echo "⚠ Force mode: Regenerating files even if they exist"
+fi
+
 # Create output directories
 mkdir -p "$SUBMISSION_DIR/generated"
 mkdir -p "$SUBMISSION_DIR/simulation"
@@ -78,20 +124,28 @@ else
     echo "  (Skipping - validator not found)"
 fi
 
-echo ""
-echo "Step 2: Generating C++ fix from policy..."
-echo "  Policy: $POLICY_FILE"
-echo "  Output: $SUBMISSION_DIR/generated/"
-python3 core/generators/generate_fix_from_policy.py \
-    "$POLICY_FILE" \
-    "$SUBMISSION_DIR/generated/"
+# Step 2: Generate C++ fix (if not exists)
+if [ "$GENERATED_EXISTS" = false ]; then
+    echo ""
+    echo "Step 2: Generating C++ fix from policy..."
+    echo "  Policy: $POLICY_FILE"
+    echo "  Output: $SUBMISSION_DIR/generated/"
+    python3 core/generators/generate_fix_from_policy.py \
+        "$POLICY_FILE" \
+        "$SUBMISSION_DIR/generated/"
+else
+    echo ""
+    echo "Step 2: Skipping C++ generation (already exists)"
+fi
 
-echo ""
-echo "Step 3: Generating LAMMPS system files..."
-echo "  Problem: $PROBLEM_FILE"
-echo "  Policy:  $POLICY_FILE"
-echo "  Params:  $PARAMS_FILE"
-echo "  Output:  $SUBMISSION_DIR/simulation/"
+# Step 3: Generate LAMMPS files (if not exists)
+if [ "$SIMULATION_EXISTS" = false ]; then
+    echo ""
+    echo "Step 3: Generating LAMMPS system files..."
+    echo "  Problem: $PROBLEM_FILE"
+    echo "  Policy:  $POLICY_FILE"
+    echo "  Params:  $PARAMS_FILE"
+    echo "  Output:  $SUBMISSION_DIR/simulation/"
 
 # Extract params if needed (handle nested structure)
 TEMP_PARAMS="$SUBMISSION_DIR/temp_params.json"

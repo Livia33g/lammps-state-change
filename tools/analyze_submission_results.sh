@@ -2,12 +2,15 @@
 # Analyze simulation results for a submission and generate metrics
 #
 # Usage:
-#   tools/analyze_submission_results.sh submissions/problem-001-dimer-ksat/username/
+#   tools/analyze_submission_results.sh submissions/problem-001-dimer-ksat/username/ [--force]
 #
 # This analyzes the trajectory and generates:
 #   - Timeseries CSV
 #   - Leaderboard row CSV
 #   - Results summary
+#
+# Options:
+#   --force    Force re-analysis even if results already exist
 
 set -e
 
@@ -15,9 +18,25 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$SCRIPT_DIR"
 
 SUBMISSION_DIR="${1}"
+FORCE=false
+
+# Parse options
+shift || true
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --force)
+            FORCE=true
+            shift
+            ;;
+        *)
+            echo "Unknown option: $1"
+            exit 1
+            ;;
+    esac
+done
 
 if [ -z "$SUBMISSION_DIR" ]; then
-    echo "Usage: tools/analyze_submission_results.sh submissions/problem-XXX/username/"
+    echo "Usage: tools/analyze_submission_results.sh submissions/problem-XXX/username/ [--force]"
     exit 1
 fi
 
@@ -41,6 +60,20 @@ if [ ! -d "$RESULTS_DIR" ] || [ -z "$DUMP_FILE" ]; then
     echo "Error: No simulation results found in $RESULTS_DIR"
     echo "Expected: dump.*.lammpstrj file"
     exit 1
+fi
+
+# Check if already analyzed
+if [ -f "$ANALYSIS_DIR/leaderboard_row.csv" ] && [ "$FORCE" = false ]; then
+    echo "✓ Analysis already complete (leaderboard_row.csv exists)"
+    echo "  Skipping re-analysis. Use --force to re-analyze."
+    echo ""
+    echo "Existing analysis:"
+    echo "  $ANALYSIS_DIR/leaderboard_row.csv"
+    exit 0
+fi
+
+if [ "$FORCE" = true ]; then
+    echo "⚠ Force mode: Re-analyzing even if results exist"
 fi
 
 echo "=========================================="
