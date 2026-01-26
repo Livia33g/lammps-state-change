@@ -177,12 +177,12 @@ Convert A→C using B as catalyst. Simplified k-SAT encoding testing basic non-e
 ### Problem 002: Octahedron Assembly
 **Difficulty:** Intermediate | **Status:** Coming Soon
 
-Exact structure assembly with proofreading. From proposal Figure 2.
+Exact structure assembly with proofreading.
 
 ### Problem 003: Hamiltonian Path
 **Difficulty:** Advanced | **Status:** Coming Soon
 
-Graph search encoding. From proposal Figure 2 (equilibrium limit: 19 nodes max).
+Graph search encoding (equilibrium limit: 19 nodes max).
 
 ---
 
