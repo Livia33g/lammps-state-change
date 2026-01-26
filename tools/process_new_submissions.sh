@@ -20,8 +20,15 @@
 
 set -e
 
-INBOX_DIR="submissions-inbox"
-PRIVATE_DIR="submissions-private"
+# Configuration: Set path to private repository
+# Option 1: Use environment variable
+# Option 2: Edit paths below directly
+
+# Path to private repo (defaults to ~/lammps-state-change-private)
+PRIVATE_REPO="${SUBMISSIONS_PRIVATE_REPO:-$HOME/lammps-state-change-private}"
+INBOX_DIR="$PRIVATE_REPO/submissions-inbox"
+ARCHIVE_DIR="$PRIVATE_REPO/submissions-archive"
+
 TOOLS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(dirname "$TOOLS_DIR")"
 
@@ -119,12 +126,12 @@ for submission_dir in "$INBOX_DIR"/*/ ; do
 
     # Create timestamp for this submission
     timestamp=$(date +%Y-%m-%d_%H%M%S)
-    dest_dir="$PRIVATE_DIR/$problem_id/${username}_${timestamp}"
+    dest_dir="$ARCHIVE_DIR/$problem_id/${username}_${timestamp}"
 
     # Create destination directory
     mkdir -p "$dest_dir"
 
-    # Move submission to private repo
+    # Move submission to archive
     echo "  Moving to: $dest_dir"
     cp -r "$submission_dir"/* "$dest_dir/"
 
