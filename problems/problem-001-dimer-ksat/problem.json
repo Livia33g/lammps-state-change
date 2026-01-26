@@ -112,6 +112,16 @@
     }
   },
 
+  "design_freedom": {
+    "level": "policy_and_parameters",
+    "allowed_modifications": [
+      "state_transitions",
+      "interaction_strengths",
+      "contact_cutoffs"
+    ],
+    "description": "Participants design the state-change policy (when/how to flip) and can tune interaction parameters (morse depths, cutoffs). The molecular encoding (species, geometry, initial composition) is fixed by the problem."
+  },
+
   "scoring": {
     "primary_metric": "work_per_yield",
     "description": "Minimize fuel consumed (ΔPE or flip count) per unit of C-yield achieved. Lower is better.",
