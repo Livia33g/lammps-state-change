@@ -106,17 +106,41 @@ python tools/run_evaluation.py submissions/problem-001/your_username/ \
   --problem problem-001 --replicas 1
 ```
 
-### Step 4: Submit
+### Step 4: Submit Your Solution
 
-Create a directory:
-```
-submissions/problem-001/your_username/
-├── policy.json          # Your state transition rules
-├── submission.json      # Metadata
-└── params.json          # Tunable parameters (optional)
+**Submit via Google Form:**
+
+1. **Open the submission form**: [Submit Your Solution](https://docs.google.com/forms/d/e/1FAIpQLSc-DcsgQnjKmV--H3YAhcjdPpD2xzlIWyVZCyFKfCCMINfAPA/viewform)
+
+2. **Fill out the form**:
+   - **Username**: Your username for the leaderboard
+   - **Email**: Your email for notifications
+   - **Problem ID**: Select the problem you're submitting for
+   - **Attempt #**: If this is a resubmission, increment the attempt number
+   - **Policy json**: Paste the **entire contents** of your `policy.json` file
+   - **System json** (if applicable): Some problems allow custom system configurations
+   - **Potentials json** (if applicable): Some problems allow custom interaction potentials
+
+3. **Submit**: Click submit and you'll receive a confirmation
+
+**What happens next:**
+- Your submission is automatically organized by problem ID in our tracking sheet
+- We process submissions within 24-48 hours
+- You'll receive an email when your results are ready
+- Scores appear on the public leaderboard
+
+**Before submitting, test locally:**
+```bash
+# Test your policy.json syntax
+python3 -m json.tool your_policy.json > /dev/null && echo "✓ Valid JSON"
+
+# Use the problem's analysis script to test locally (if available)
+bash problems/problem-001-dimer-ksat/analyze_submission.sh \
+  --submission-dir your_test_directory/ \
+  --results-dir your_simulation_results/
 ```
 
-We'll run your simulation on our cluster and update the leaderboard.
+**Note**: Only your score appears on the leaderboard. Your policy details remain private.
 
 ---
 

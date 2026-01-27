@@ -55,12 +55,7 @@ lammps-state-change/
 │   ├── problem-002-octahedron/        # (Future) Structure assembly
 │   └── problem-003-hamiltonian-path/  # (Future) Graph search
 │
-├── submissions/                       # User submissions (gitignored)
-│   └── problem-001/
-│       └── username/
-│           ├── policy.json            # State transition rules
-│           ├── params.json            # Tunable parameters
-│           └── submission.json        # Metadata
+├── submissions/                       # Internal processing directory (gitignored)
 │
 ├── core/                              # Framework infrastructure
 │   ├── schemas/                       # JSON schemas
@@ -313,10 +308,10 @@ See [FRAMEWORK_SUMMARY.md](FRAMEWORK_SUMMARY.md) for details.
 ## 🤝 Contributing
 
 ### Submit a Solution
-1. Copy starter template
-2. Design your policy
-3. Validate with `tools/validate_submission.py` (coming soon)
-4. Submit via pull request or email
+1. Copy starter template from `problems/{problem-id}/starter_template/`
+2. Design your policy (fill in `policy.json`)
+3. Submit via [Google Form](https://docs.google.com/forms/d/e/1FAIpQLSc-DcsgQnjKmV--H3YAhcjdPpD2xzlIWyVZCyFKfCCMINfAPA/viewform)
+4. See [PARTICIPANT_GUIDE.md](PARTICIPANT_GUIDE.md) for complete instructions
 
 ### Propose a Problem
 1. Create `problem.json` following schema
