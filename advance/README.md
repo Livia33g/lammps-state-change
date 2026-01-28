@@ -73,6 +73,12 @@ saved as `submission.py`. Our tools will then:
 6. Call `decode()` to obtain your claimed solution (must succeed or disqualify)
 7. Verify your decoded solution satisfies the problem constraints (must pass or disqualify)
 
+### Submit your solution (Google Form)
+
+Use this form for the advanced competition submissions:
+
+`https://docs.google.com/forms/d/e/1FAIpQLSd6NBCwdrk_zeaSg8l27eCohOHZ_ZJpdmSYZyqaSlzj6QI8qg/viewform?usp=sharing`
+
 ### Files Provided
 
 - **`submission_template.py`** – Template with required class structure and method signatures

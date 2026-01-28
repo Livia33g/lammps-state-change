@@ -79,6 +79,12 @@ See `advance/example_submission.py` for a complete working example that demonstr
 
 Submit a single Python file (`submission.py`) that implements the `StateChangeSolution` class from `advance/submission_template.py`. Copy your file content into the Google Form text field.
 
+### Submit (Google Form)
+
+Submit your `submission.py` by pasting it into the form:
+
+`https://docs.google.com/forms/d/e/1FAIpQLSd6NBCwdrk_zeaSg8l27eCohOHZ_ZJpdmSYZyqaSlzj6QI8qg/viewform?usp=sharing`
+
 **Before submitting, run:**
 ```bash
 python advance/check_submission.py --submission your_submission.py --problem problems/problem-001-ksat-advanced/problem.json

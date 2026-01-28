@@ -22,6 +22,7 @@ This repository has **two separate competition formats** on different branches:
   ```
 - **Format**: Submit a single Python file implementing encode/design/decode
 - **See**: [advance/README.md](advance/README.md) for full instructions
+- **Submit here**: `https://docs.google.com/forms/d/e/1FAIpQLSd6NBCwdrk_zeaSg8l27eCohOHZ_ZJpdmSYZyqaSlzj6QI8qg/viewform?usp=sharing`
 
 **If you want to participate in the advanced competition, you MUST checkout the `advance-interface` branch from the start.**
 
