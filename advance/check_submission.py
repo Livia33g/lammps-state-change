@@ -5,7 +5,7 @@ Usage (from the repo root or the advance/ directory):
 
     python advance/check_submission.py \\
         --submission path/to/my_submission.py \\
-        --problem problems/problem-001-ksat-abstract/problem.json
+        --problem problems/problem-001-ksat-advanced/problem.json
 
 This script performs **structural** checks only:
   - Imports the submission module.

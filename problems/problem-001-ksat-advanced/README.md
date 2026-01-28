@@ -81,7 +81,7 @@ Submit a single Python file (`submission.py`) that implements the `StateChangeSo
 
 **Before submitting, run:**
 ```bash
-python advance/check_submission.py --submission your_submission.py --problem problems/problem-001-ksat-abstract/problem.json
+python advance/check_submission.py --submission your_submission.py --problem problems/problem-001-ksat-advanced/problem.json
 ```
 
 If the checker fails, your submission will not run on our side and will be automatically disqualified.

@@ -16,7 +16,7 @@ cd lammps-state-change
 git checkout advance-interface
 ```
 
-**The `advance/` directory and `problems/problem-001-ksat-abstract/` only exist on this branch.**
+**The `advance/` directory and `problems/problem-001-ksat-advanced/` only exist on this branch.**
 
 ---
 
@@ -83,7 +83,7 @@ saved as `submission.py`. Our tools will then:
 
 **ALWAYS run the checker:**
 ```bash
-python advance/check_submission.py --submission your_submission.py --problem problems/problem-001-ksat-abstract/problem.json
+python advance/check_submission.py --submission your_submission.py --problem problems/problem-001-ksat-advanced/problem.json
 ```
 
 If the checker reports any errors, **fix them before submitting**. Submissions that fail the checker will not run on our side and will be automatically disqualified.

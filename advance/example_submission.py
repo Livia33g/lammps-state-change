@@ -1,5 +1,5 @@
 """
-Example submission for problem-001-ksat-abstract.
+Example submission for problem-001-ksat-advanced.
 
 This demonstrates ONE possible encoding/design/decode strategy. You are free
 to use a completely different approach.

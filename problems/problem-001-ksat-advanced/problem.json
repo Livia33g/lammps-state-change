@@ -1,5 +1,5 @@
 {
-  "problem_id": "problem-001-ksat-abstract",
+  "problem_id": "problem-001-ksat-advanced",
   "title": "Abstract 3-SAT instance for state-change design",
   "description": "An abstract 3-SAT formula that must be encoded into a patchy-particle system by the competitor. This problem contains only the logical structure (variables and clauses), not a fixed molecular encoding.",
 

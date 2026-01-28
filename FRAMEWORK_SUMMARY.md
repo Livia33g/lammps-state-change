@@ -139,7 +139,7 @@ lammps-state-change/
 ├── FRAMEWORK_SUMMARY.md               # This file (NEW)
 │
 ├── problems/                          # Competition challenges (NEW)
-│   ├── problem-001-dimer-ksat/
+│   ├── problem-001-ksat-advanced/
 │   │   ├── problem.json               # Problem definition
 │   │   ├── README.md                  # Problem statement
 │   │   ├── baseline_policy.json       # Reference solution

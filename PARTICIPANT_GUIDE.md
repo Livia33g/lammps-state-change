@@ -48,7 +48,7 @@ Browse `problems/` directory. Each problem has:
 - `starter_template/` - Scaffold to get started
 
 Example problems:
-- **problem-001-dimer-ksat**: Convert A→C via B catalyst (species conversion)
+- **problem-001-ksat-advanced**: Advanced 3-SAT (full encode/design/decode via `submission.py`)
 - **problem-002-octahedron**: Assemble exact octahedral structures
 - **problem-003-hamiltonian-path**: Find valid paths in graphs
 - **problem-004-frustrated-sampling**: Sample from frustrated systems
@@ -135,7 +135,11 @@ python tools/run_evaluation.py submissions/problem-001/your_username/ \
 python3 -m json.tool your_policy.json > /dev/null && echo "✓ Valid JSON"
 
 # Use the problem's analysis script to test locally (if available)
-bash problems/problem-001-dimer-ksat/analyze_submission.sh \
+## Note (advanced branch)
+
+This `advance-interface` branch is **advanced-only** and does not ship the classic
+`problem-001-dimer-ksat` directory. For the classic JSON-only workflow, use the
+`staging` branch.
   --submission-dir your_test_directory/ \
   --results-dir your_simulation_results/
 ```

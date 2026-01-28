@@ -45,7 +45,7 @@ Participants design **state-change policies** (when and how molecules flip betwe
 
 1. **Checkout this branch**: `git checkout advance-interface` (if not already here)
 2. **Read the guide**: [advance/README.md](advance/README.md)
-3. **Choose a problem**: Browse `problems/problem-001-ksat-abstract/`
+3. **Choose a problem**: Browse `problems/problem-001-ksat-advanced/`
 4. **Study the example**: Look at `advance/example_submission.py`
 5. **Write your solution**: Implement `StateChangeSolution` class
 6. **Test locally**: Run `advance/check_submission.py` before submitting
@@ -77,7 +77,7 @@ lammps-state-change/
 ├── FRAMEWORK_SUMMARY.md               # Implementation details
 │
 ├── problems/                          # Competition challenges
-│   ├── problem-001-dimer-ksat/        # A→C catalytic conversion (classic)
+│   # (Classic problems removed from this branch; see `staging` branch)
 │   │   ├── problem.json               # Problem definition
 │   │   ├── README.md                  # Problem description
 │   │   ├── baseline_policy.json       # Reference solution
@@ -88,7 +88,7 @@ lammps-state-change/
 │   │       ├── params_template.json   # Tune these values
 │   │       └── submission_template.json
 │   │
-│   ├── problem-001-ksat-abstract/     # Abstract 3-SAT instance (advanced)
+│   ├── problem-001-ksat-advanced/     # Advanced 3-SAT instance (advanced)
 │   ├── problem-002-octahedron/        # (Future) Structure assembly
 │   └── problem-003-hamiltonian-path/  # (Future) Graph search
 │
@@ -204,7 +204,7 @@ Convert A→C using B as catalyst. Simplified k-SAT encoding testing basic non-e
 - **Baseline:** Greedy policy achieves `yield=0.72`, `work/yield=8.3`
 - **Your challenge:** Beat the baseline!
 
-[→ Problem 001 Details](problems/problem-001-dimer-ksat/README.md)
+[→ Advanced Problem 001 Details](problems/problem-001-ksat-advanced/README.md)
 
 ### Problem 002: Octahedron Assembly
 **Difficulty:** Intermediate | **Status:** Coming Soon
@@ -276,7 +276,7 @@ See [docs/DESIGN_FREEDOM_LEVELS.md](docs/DESIGN_FREEDOM_LEVELS.md) for detailed 
 
 ### Getting Started
 1. [PARTICIPANT_GUIDE.md](PARTICIPANT_GUIDE.md) - Full walkthrough
-2. [problems/problem-001-dimer-ksat/README.md](problems/problem-001-dimer-ksat/README.md) - First challenge
+2. [problems/problem-001-ksat-advanced/README.md](problems/problem-001-ksat-advanced/README.md) - First advanced challenge
 3. [docs/STATE_CHANGE_EXPLANATION.md](docs/STATE_CHANGE_EXPLANATION.md) - How it works under the hood
 
 ### Understanding State Changes
@@ -398,4 +398,4 @@ MIT License - See LICENSE file for details.
 
 ---
 
-**Ready to compete?** Start with [Problem 001](problems/problem-001-dimer-ksat/README.md)! 🚀
+**Ready to compete?** Start with [Advanced Problem 001](problems/problem-001-ksat-advanced/README.md)! 🚀

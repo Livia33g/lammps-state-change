@@ -6,7 +6,7 @@
 2026-01-23
 
 ### Test Configuration
-- **Problem**: problem-001-dimer-ksat
+- **Problem**: (classic) problem-001-dimer-ksat
 - **Policy**: baseline_policy.json (greedy_catalytic_baseline)
 - **Parameters**: baseline_params.json
 
@@ -18,7 +18,7 @@
 **Command:**
 ```bash
 python3 core/generators/generate_fix_from_policy.py \
-  problems/problem-001-dimer-ksat/baseline_policy.json \
+  (classic problem removed from this branch; see `staging` branch) \
   test_full_pipeline/
 ```
 
@@ -38,9 +38,7 @@ python3 core/generators/generate_fix_from_policy.py \
 **Command:**
 ```bash
 python3 core/generators/generate_system_from_problem.py \
-  --problem problems/problem-001-dimer-ksat/problem.json \
-  --policy problems/problem-001-dimer-ksat/baseline_policy.json \
-  --params problems/problem-001-dimer-ksat/baseline_params.json \
+  # (classic problem removed from this branch; see `staging` branch)
   --output test_full_pipeline/
 ```
 
