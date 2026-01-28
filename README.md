@@ -41,7 +41,7 @@ lammps-state-change/
 ├── FRAMEWORK_SUMMARY.md               # Implementation details
 │
 ├── problems/                          # Competition challenges
-│   ├── problem-001-dimer-ksat/        # A→C catalytic conversion
+│   ├── problem-001-dimer-ksat/        # A→C catalytic conversion (classic)
 │   │   ├── problem.json               # Problem definition
 │   │   ├── README.md                  # Problem description
 │   │   ├── baseline_policy.json       # Reference solution
@@ -52,6 +52,7 @@ lammps-state-change/
 │   │       ├── params_template.json   # Tune these values
 │   │       └── submission_template.json
 │   │
+│   ├── problem-001-ksat-abstract/     # Abstract 3-SAT instance (advanced)
 │   ├── problem-002-octahedron/        # (Future) Structure assembly
 │   └── problem-003-hamiltonian-path/  # (Future) Graph search
 │
@@ -86,6 +87,11 @@ lammps-state-change/
 │   ├── FIXES_APPLIED.md               # MPI safety notes
 │   └── ...
 │
+├── advance/                           # Advanced open-design API (Python submissions)
+│   ├── README.md                      # Explains advanced mode
+│   ├── submission_template.py         # Single-file submission template
+│   └── check_submission.py            # Local structural checker
+│
 └── tools/                             # Helper scripts
     ├── rebuild_manual.sh              # Build LAMMPS with fixes
     ├── add_new_fix.sh                 # Add custom fixes
@@ -117,7 +123,7 @@ Protocol to generate solutions via non-equilibrium driving:
 ### 3. **DECODE** (Automated)
 Extract computational answer from molecular state:
 - **Yield measurement** (fraction in target configuration)
-- **Work calculation** (fuel consumed, ΔPE)
+- **Work calculation** (energy consumed, ΔPE)
 - **Scoring** (Pareto frontier: yield vs energy vs time)
 
 **Defined in:** `problem.json` + `benchmark/score_*.py`
@@ -137,7 +143,7 @@ Lower is better! Measures **energy efficiency** of your policy.
 ### Secondary Metrics
 - **Final yield** - Did you solve the problem?
 - **Time to threshold** - How fast did you converge?
-- **Flip count** - Total fuel consumed (proxy for thermodynamic work)
+- **Flip count** - Total state change events (proxy for thermodynamic work)
 
 ### Leaderboard Ranking
 Policies are ranked on the **Pareto frontier**:
@@ -154,7 +160,7 @@ No single "winner" - multiple optimal strategies in different regimes!
 ### Problem 001: Catalytic Species Conversion
 **Difficulty:** Beginner | **Status:** Active | **Design Freedom:** Policy + Parameters
 
-Convert A→C using B as catalyst. Simplified k-SAT encoding testing basic non-equilibrium fuel-driven computation.
+Convert A→C using B as catalyst. Simplified k-SAT encoding testing basic non-equilibrium driven computation.
 
 - **Encoding:** 30 monomers (20 A, 10 B, 0 C initially) [Fixed]
 - **Your design:** State-change policy + interaction parameters [Tunable]

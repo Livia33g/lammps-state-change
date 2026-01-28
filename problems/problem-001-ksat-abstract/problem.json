@@ -1,0 +1,43 @@
+{
+  "problem_id": "problem-001-ksat-abstract",
+  "title": "Abstract 3-SAT instance for state-change design",
+  "description": "An abstract 3-SAT formula that must be encoded into a patchy-particle system by the competitor. This problem contains only the logical structure (variables and clauses), not a fixed molecular encoding.",
+
+  "category": "abstract_3sat",
+
+  "sat_instance": {
+    "n_variables": 6,
+    "clauses": [
+      [1, -2, 3],
+      [-1, 4, 5],
+      [2, 3, -6],
+      [-3, -4, 6],
+      [1, 5, -6]
+    ],
+    "convention": "Each clause is a list of 3 integers. Positive k means variable k, negative k means NOT variable k."
+  },
+
+  "simulation_constraints": {
+    "max_particles": 500,
+    "max_steps": 2000000,
+    "max_walltime": "24:00:00",
+    "notes": "Competitors are free to choose patch types, geometry, and interactions, subject to these global resource limits."
+  },
+
+  "expected_decode": {
+    "assignment_length": 6,
+    "must_report_satisfied": true,
+    "tolerance": "The decoded assignment must satisfy all clauses of the formula. We will verify independently."
+  },
+
+  "scoring": {
+    "primary_metric": "work_per_satisfied_clause",
+    "description": "Lower work (number of state-change events or an equivalent energy measure) per satisfied clause is better.",
+    "tie_breakers": [
+      "total_work",
+      "time_to_first_satisfying_assignment"
+    ]
+  }
+}
+
+
