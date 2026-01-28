@@ -2,6 +2,31 @@
 
 **A Kaggle-style benchmark for out-of-equilibrium molecular computation**
 
+## ⚠️ IMPORTANT: Two Competition Formats
+
+This repository has **two separate competition formats** on different branches:
+
+### 1. **Classic Format** (JSON-based policies)
+- **Branch**: `staging` (default)
+- **How to access**: Clone the repo normally
+- **Format**: Submit JSON policy files (no coding required)
+- **See**: [PARTICIPANT_GUIDE.md](PARTICIPANT_GUIDE.md)
+
+### 2. **Advanced Format** (Full Python script submissions) ⭐ **THIS BRANCH**
+- **Branch**: `advance-interface` ← **YOU ARE HERE**
+- **How to access**: 
+  ```bash
+  git clone https://github.com/Livia33g/lammps-state-change.git
+  cd lammps-state-change
+  git checkout advance-interface
+  ```
+- **Format**: Submit a single Python file implementing encode/design/decode
+- **See**: [advance/README.md](advance/README.md) for full instructions
+
+**If you want to participate in the advanced competition, you MUST checkout the `advance-interface` branch from the start.**
+
+---
+
 ## 🎯 What Is This?
 
 This repository implements a **competition framework** for designing non-equilibrium molecular computing systems using state-changing patchy particles in LAMMPS.
@@ -14,14 +39,25 @@ Participants design **state-change policies** (when and how molecules flip betwe
 
 ---
 
-## 🚀 Quick Start
+## 🚀 Quick Start (Advanced Format)
 
-### For Participants
+### For Advanced Competition Participants
 
-1. **Read the guide**: [PARTICIPANT_GUIDE.md](PARTICIPANT_GUIDE.md)
-2. **Choose a problem**: Browse `problems/` directory
-3. **Design your policy**: Fill in `policy.json` (declarative, no coding!)
-4. **Submit**: We run it on our cluster, update leaderboard
+1. **Checkout this branch**: `git checkout advance-interface` (if not already here)
+2. **Read the guide**: [advance/README.md](advance/README.md)
+3. **Choose a problem**: Browse `problems/problem-001-ksat-abstract/`
+4. **Study the example**: Look at `advance/example_submission.py`
+5. **Write your solution**: Implement `StateChangeSolution` class
+6. **Test locally**: Run `advance/check_submission.py` before submitting
+7. **Submit**: Paste your Python file into the Google Form
+
+### For Classic Format Participants
+
+1. **Checkout staging branch**: `git checkout staging`
+2. **Read the guide**: [PARTICIPANT_GUIDE.md](PARTICIPANT_GUIDE.md)
+3. **Choose a problem**: Browse `problems/` directory
+4. **Design your policy**: Fill in `policy.json` (declarative, no coding!)
+5. **Submit**: We run it on our cluster, update leaderboard
 
 ### For Problem Creators
 
