@@ -94,4 +94,60 @@ python advance/check_submission.py --submission your_submission.py --problem pro
 
 If the checker reports any errors, **fix them before submitting**. Submissions that fail the checker will not run on our side and will be automatically disqualified.
 
+---
+
+### 🔍 Sandbox + Compiler Reality Check (Read This Carefully)
+
+On the moderator side, we run a **sandbox** before full evaluation. Passing the local checker is **necessary but not sufficient**.
+
+The sandbox will:
+- import your submission
+- run `encode()` and `design_policy()`
+- compile LAMMPS with your fix (incremental build)
+- run a short **smoke simulation** (~1000 steps) using your generated `in.*`
+
+If any step fails, the submission is rejected and you must resubmit as a **new** entry.
+
+#### ✅ Must‑do items (common failure causes we’ve seen)
+
+**LAMMPS input must be complete**
+- If you use `atom_style atomic`, you must set masses before `velocity`:
+  - `mass 1 ...`, `mass 2 ...`, etc. for every type you use
+- Missing masses will fail with:
+  - `Not all per-type masses are set ...`
+
+**Your fix must be registered the way our LAMMPS is built**
+- Our build uses the standard LAMMPS pattern inside the *header*:
+  - `#ifdef FIX_CLASS` / `FixStyle(...)` / `#else ... #endif`
+- Do **NOT** rely on `#include "fix_style.h"` (not present in our tree).
+
+Minimal example (inside `fix_state_change_<name>.h`):
+```cpp
+#ifdef FIX_CLASS
+// clang-format off
+FixStyle(state/change/<name>,FixStateChangeName);
+// clang-format on
+#else
+// ... normal header ...
+#endif
+```
+
+**Fix file naming**
+- C++ files must be named:
+  - `fix_state_change_<something>.h`
+  - `fix_state_change_<something>.cpp`
+- And `design_policy()` must return:
+  - `{"fix_files": ["fix_state_change_<something>.cpp", "fix_state_change_<something>.h"]}`
+
+**Write only inside `work_dir`**
+- Only write to:
+  - `work_dir/simulation/` and `work_dir/generated/`
+- Never access other paths (auto‑DQ).
+
+#### 🧪 Recommended workflow for competitors
+- Run the local checker:
+  - `python advance/check_submission.py --submission your_submission.py --problem problems/problem-001-ksat-advanced/problem.json`
+- Ensure your `in.*` explicitly sets `mass` for all used atom types.
+- Ensure your header uses the `#ifdef FIX_CLASS` + `FixStyle(...)` pattern (as above).
+
 

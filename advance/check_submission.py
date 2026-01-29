@@ -21,6 +21,7 @@ are handled by the competition infrastructure on the cluster.
 import argparse
 import importlib.util
 import json
+import re
 import shutil
 import tempfile
 from pathlib import Path
@@ -29,6 +30,71 @@ from pathlib import Path
 REQUIRED_API_VERSION = "v1"
 CLASS_NAME = "StateChangeSolution"
 
+def _read_text(path: Path) -> str:
+    try:
+        return path.read_text(encoding="utf-8", errors="replace")
+    except Exception:
+        return path.read_text(errors="replace")
+
+def _check_lammps_input_has_masses(sim_dir: Path) -> None:
+    """
+    Heuristic check: require at least one `mass <type> <value>` in at least one in.* file.
+    This prevents a very common sandbox failure:
+      "Not all per-type masses are set ..."
+    """
+    in_files = list(sim_dir.glob("in.*"))
+    for p in in_files:
+        txt = _read_text(p)
+        if re.search(r'^\s*mass\s+\d+\s+[-+0-9.eE]+\s*$', txt, flags=re.MULTILINE):
+            return
+    raise ValueError(
+        "LAMMPS input is missing `mass <type> <value>` commands. "
+        "For atom_style atomic (and most styles), you MUST set per-type masses "
+        "before `velocity`/integration."
+    )
+
+def _check_fix_registration_pattern(gen_dir: Path) -> None:
+    """
+    Enforce the registration pattern that matches the moderator LAMMPS tree:
+      - FixStyle(...) must appear in the HEADER under `#ifdef FIX_CLASS`
+      - Do NOT include fix_style.h (not present in moderator build)
+    """
+    headers = sorted(gen_dir.glob("fix_state_change_*.h"))
+    sources = sorted(gen_dir.glob("fix_state_change_*.cpp"))
+
+    if not headers or not sources:
+        # structural checker already handles missing files, but keep message crisp
+        return
+
+    for h in headers:
+        txt = _read_text(h)
+        if "fix_style.h" in txt:
+            raise ValueError(
+                f"{h.name} includes fix_style.h, which is not available on the moderator build. "
+                "Use the `#ifdef FIX_CLASS` / `FixStyle(...)` header pattern instead."
+            )
+        if "#ifdef FIX_CLASS" not in txt or "FixStyle(" not in txt:
+            raise ValueError(
+                f"{h.name} does not contain the required registration block. "
+                "Your header must include `#ifdef FIX_CLASS` and a `FixStyle(state/change/<name>,FixClass);` line."
+            )
+        # Ensure FixStyle is in the FIX_CLASS section (rough heuristic)
+        parts = txt.split("#else", 1)
+        if parts:
+            fix_class_block = parts[0]
+            if "FixStyle(" not in fix_class_block:
+                raise ValueError(
+                    f"{h.name} has FixStyle but not in the `#ifdef FIX_CLASS` block. "
+                    "Move FixStyle(...) above the #else."
+                )
+
+    for cpp in sources:
+        txt = _read_text(cpp)
+        if "fix_style.h" in txt:
+            raise ValueError(
+                f"{cpp.name} includes fix_style.h, which is not available on the moderator build. "
+                "Do not include it; register via the header's `#ifdef FIX_CLASS` block."
+            )
 
 def load_submission_module(path: Path):
     if not path.exists():
@@ -90,6 +156,7 @@ def run_encode_and_design(SolutionClass, problem_def: dict):
             raise FileNotFoundError(
                 f"No LAMMPS data files found in {sim_dir} (expected 'data.*')."
             )
+        _check_lammps_input_has_masses(sim_dir)
 
         # ------------------------- design_policy -------------------------
         print("[checker] Running design_policy() ...")
@@ -124,6 +191,9 @@ def run_encode_and_design(SolutionClass, problem_def: dict):
                 raise FileNotFoundError(
                     f"Listed fix file does not exist: {fpath}"
                 )
+
+        # Additional static checks that match common moderator sandbox failures
+        _check_fix_registration_pattern(gen_dir)
 
         print("[checker] encode() and design_policy() passed structural checks.")
 
