@@ -12,8 +12,8 @@ In the proposal framing ([file://Simons_Molecular_Computing.pdf](file://Simons_M
 protocol optimization is the key challenge: compare non-equilibrium protocols by
 how efficiently they drive the system toward a desired readout.
 
-We interpret flips as fuel consumption and aim to maximize:
-  - yield, quickly, with minimal fuel/work proxy.
+We interpret flips as energy consumption and aim to maximize:
+  - yield, quickly, with minimal energy/work proxy.
 
 Current limitations
 -------------------
@@ -22,7 +22,7 @@ We therefore track both:
   - work_abs_total: sum |ΔPE| over all intervals
   - work_abs_flip_intervals: sum |ΔPE| restricted to intervals with >=1 flip
 
-If/when fixes print instantaneous per-event dE, we should switch fuel accounting to Σ dE.
+If/when fixes print instantaneous per-event dE, we should switch energy accounting to Σ dE.
 """
 
 from __future__ import annotations
@@ -101,7 +101,7 @@ def compute_metrics(rows: List[Row], yield_threshold: float) -> Dict[str, float]
 
     # A simple scalar score:
     #  - reward final yield (dominant)
-    #  - penalize fuel proxy and slowness to hit threshold
+    #  - penalize energy proxy and slowness to hit threshold
     #
     # score = final_y - alpha * work_abs_flip_intervals - beta * (t_reach / t_max)
     #
@@ -110,7 +110,7 @@ def compute_metrics(rows: List[Row], yield_threshold: float) -> Dict[str, float]
     t_max = valid[-1].timestep if valid[-1].timestep > 0 else 1
     t_norm = (t_reach / t_max) if t_reach is not None else 1.0
 
-    alpha = 0.25  # weight for fuel proxy (tune per project)
+    alpha = 0.25  # weight for energy proxy (tune per project)
     beta = 0.10   # weight for slowness (tune per project)
 
     score = float(final_y) - alpha * float(work_abs_flip_intervals) - beta * float(t_norm)

@@ -20,7 +20,7 @@
       "flip_probability": 1.0,
       "hysteresis_checks": 5,
       "reversible": false,
-      "fuel_cost": 1.0,
+      "energy_cost": 1.0,
       "description": "When A patch is within 0.7 of B patch for 5 consecutive checks (500 timesteps), flip A→C with 100% probability"
     }
   ],

@@ -34,7 +34,7 @@ $ python3 core/generators/generate_fix_from_policy.py \
 - ✅ Probabilistic flips (flip_probability)
 - ✅ Hysteresis (consecutive check requirements)
 - ✅ Reversible/irreversible transitions
-- ✅ Fuel cost tracking
+- ✅ Energy cost tracking
 - ✅ Multiple transition rules in single policy
 - ✅ MPI-safe (local_only mode)
 

@@ -96,13 +96,13 @@
           "reversible": {
             "type": "boolean",
             "default": false,
-            "description": "Whether this transition can reverse (affects fuel consumption)"
+            "description": "Whether this transition can reverse (affects energy consumption)"
           },
-          "fuel_cost": {
+          "energy_cost": {
             "type": "number",
             "minimum": 0,
             "default": 1,
-            "description": "Relative fuel cost per flip (for scoring)"
+            "description": "Relative energy cost per flip (for scoring)"
           }
         }
       }

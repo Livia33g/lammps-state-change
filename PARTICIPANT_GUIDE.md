@@ -20,7 +20,7 @@ Our approach decomposes molecular computation into three essential stages:
 
 We use **patchy particles** (molecules with directional binding sites) that can:
 - **Bind** to each other based on patch types (A, B, C, etc.)
-- **Flip internal states** (A→B→C) by consuming fuel
+- **Flip internal states** (A→B→C) by consuming energy
 - **Self-assemble** into clusters via diffusion + binding
 
 The key innovation: particles can **change their state during simulation** based on local observations (who they're touching). This enables non-equilibrium computation beyond equilibrium limits.
@@ -29,7 +29,7 @@ The key innovation: particles can **change their state during simulation** based
 
 - **Equilibrium self-assembly** fails for complex structures (yield degrades sharply)
 - **Hamiltonian Path Problems** solvable only up to ~19 nodes at equilibrium
-- **Non-equilibrium driving** (fuel-powered state changes) overcomes these limits
+- **Non-equilibrium driving** (energy-driven state changes) overcomes these limits
 
 By carefully designing *when* and *how* particles flip states, you can:
 - Escape local energy minima
@@ -155,7 +155,7 @@ You're optimized on multiple objectives:
 1. **Yield** - Fraction of molecules in target configuration
    *How well did you solve the problem?*
 
-2. **Work** - Total fuel consumed (∑ ΔPE or flip count)
+2. **Work** - Total energy consumed (∑ ΔPE or flip count)
    *How energy-efficient is your solution?*
 
 3. **Time to Threshold** - Steps to reach target yield
@@ -165,7 +165,7 @@ You're optimized on multiple objectives:
 
 Most problems use **work per yield** as primary metric:
 ```
-Score = (Fuel consumed) / (Final yield)
+Score = (Energy consumed) / (Final yield)
 Lower is better!
 ```
 

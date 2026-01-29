@@ -1,45 +1,45 @@
 {
   "problem_id": "problem-001-dimer-ksat",
-  "title": "Catalytic Species Conversion (A→C via B)",
-  "description": "Convert A-labeled monomers to C-labeled monomers using B as a catalyst. This is a simplified k-SAT encoding where A represents unsatisfied clauses and C represents satisfied clauses, with B acting as variable flips. Your goal is to maximize the fraction of C molecules while minimizing fuel consumption (flip events).",
+  "title": "2-SAT Dimer Problem (A,B,C and D,E,F channels)",
+  "description": "A 2-SAT problem encoded as a dimer patchy-particle system with two independent conditions. Condition B (TF) allows only 1 false (A) monomer at a time - if A,A are attached simultaneously, one (higher ID) flips to C. Condition D (TT) requires both to be true - if even one false (E) attaches, it switches to F. The solution is B=True, which satisfies both conditions.",
 
-  "category": "species_conversion",
+  "category": "2sat_dimer",
 
   "proposal_context": {
-    "section": "3-SAT and Species Conversion",
-    "motivation": "Tests basic non-equilibrium fuel-driven computation. Molecular encoding where clause particles (A) change conformation depending on bound variable particles (B), biasing the system toward satisfying assignments.",
+    "section": "2-SAT Dimer Encoding",
+    "motivation": "Tests non-equilibrium driven computation with two independent logical conditions. Each condition is encoded as a dimer system with state-changing patches that implement the logical rules.",
     "measurement_perturbation_relaxation": {
-      "measurement": "Clause reads bound variable states",
-      "perturbation": "Selects variable to flip based on policy",
+      "measurement": "Detect A,A on both B faces, or E on D faces",
+      "perturbation": "Flip A→C (higher ID) or E→F based on policy",
       "relaxation": "Rebinding equilibration between flips"
     }
   },
 
   "encoding": {
-    "geometry": "1core_3patch",
-    "geometry_description": "Single core (excluded volume) with 3 patches (binding sites). Core at origin, patches at (0.5, 0, 0.1), (0.5, 0.087, -0.05), (0.5, -0.087, -0.05).",
+    "geometry": "1core_twosideB_twins",
+    "geometry_description": "Two independent channels: A,B,C (core type 1) and D,E,F (core type 12). Each monomer has 1 core + 3 patches. B and D have two patch faces (face1 and face2).",
 
     "species": [
       {
-        "label": "core",
+        "label": "core_ABC",
         "lammps_type": 1,
         "role": "core",
-        "description": "Rigid body core atom (excluded volume, unchanging)",
+        "description": "Core atom for A,B,C channel (excluded volume)",
         "mass": 0.6
       },
       {
         "label": "A",
         "lammps_type": 2,
         "role": "patch",
-        "description": "A-labeled patch (initial state, can flip to C when in contact with B)",
+        "description": "A-patch (false, switchable, can flip to C)",
         "mass": 0.1,
         "initial_state": true
       },
       {
-        "label": "B",
+        "label": "B_face1",
         "lammps_type": 3,
         "role": "patch",
-        "description": "B-labeled patch (catalyst, unchanging)",
+        "description": "B face 1 patch (condition monomer, unchanging)",
         "mass": 0.1,
         "catalyst": true
       },
@@ -47,20 +47,70 @@
         "label": "C",
         "lammps_type": 4,
         "role": "patch",
-        "description": "C-labeled patch (target state, created by flips)",
+        "description": "C-patch (true, non-switchable, target state)",
         "mass": 0.1,
         "target_state": true
+      },
+      {
+        "label": "B_face2",
+        "lammps_type": 5,
+        "role": "patch",
+        "description": "B face 2 patch (condition monomer, unchanging)",
+        "mass": 0.1,
+        "catalyst": true
+      },
+      {
+        "label": "core_EDF",
+        "lammps_type": 12,
+        "role": "core",
+        "description": "Core atom for D,E,F channel (excluded volume)",
+        "mass": 0.6
+      },
+      {
+        "label": "E",
+        "lammps_type": 8,
+        "role": "patch",
+        "description": "E-patch (false, switchable, can flip to F)",
+        "mass": 0.1,
+        "initial_state": true
+      },
+      {
+        "label": "D_face1",
+        "lammps_type": 9,
+        "role": "patch",
+        "description": "D face 1 patch (condition monomer, unchanging)",
+        "mass": 0.1,
+        "catalyst": true
+      },
+      {
+        "label": "F",
+        "lammps_type": 10,
+        "role": "patch",
+        "description": "F-patch (true, non-switchable, target state)",
+        "mass": 0.1,
+        "target_state": true
+      },
+      {
+        "label": "D_face2",
+        "lammps_type": 11,
+        "role": "patch",
+        "description": "D face 2 patch (condition monomer, unchanging)",
+        "mass": 0.1,
+        "catalyst": true
       }
     ],
 
     "initial_composition": {
-      "A": 20,
-      "B": 10,
-      "C": 0
+      "A": 10,
+      "B": 5,
+      "C": 10,
+      "E": 10,
+      "D": 5,
+      "F": 10
     },
 
     "system_parameters": {
-      "particle_count": 30,
+      "particle_count": 50,
       "density": 0.001,
       "box_shrink_factor": 0.5,
       "temperature": 0.5,
@@ -70,43 +120,49 @@
     },
 
     "interactions": {
-      "description": "Only B-A and B-C attract (identical Morse potential). All other pairs neutral or repulsive (core-core).",
+      "description": "Channel ABC: A/C attract to B faces (types 3,5). Channel EFD: E/F attract to D faces (types 9,11). Channels are independent (no cross-interactions).",
       "pair_style": "hybrid morse/soft",
       "core_core": {
         "style": "soft",
         "A": 500.0,
         "cutoff": 1.0,
-        "description": "Excluded volume repulsion"
+        "description": "Excluded volume repulsion (types 1-1, 1-12, 12-12)"
       },
       "attractive_pairs": [
-        {"pair": "B-A", "types": "2-3", "description": "Catalyst binds unsatisfied"},
-        {"pair": "B-C", "types": "3-4", "description": "Catalyst binds satisfied"}
+        {"pair": "A-B_face1", "types": "2-3", "description": "A binds to B face 1"},
+        {"pair": "A-B_face2", "types": "2-5", "description": "A binds to B face 2"},
+        {"pair": "C-B_face1", "types": "4-3", "description": "C binds to B face 1"},
+        {"pair": "C-B_face2", "types": "4-5", "description": "C binds to B face 2"},
+        {"pair": "E-D_face1", "types": "8-9", "description": "E binds to D face 1"},
+        {"pair": "E-D_face2", "types": "8-11", "description": "E binds to D face 2"},
+        {"pair": "F-D_face1", "types": "10-9", "description": "F binds to D face 1"},
+        {"pair": "F-D_face2", "types": "10-11", "description": "F binds to D face 2"}
       ],
-      "neutral_pairs": ["core-patch", "A-A", "A-C", "C-C"]
+      "neutral_pairs": ["core-patch", "A-A", "A-C", "C-C", "E-E", "E-F", "F-F", "cross-channel"]
     }
   },
 
   "decoding": {
-    "yield_mode": "species_fraction",
+    "yield_mode": "concentration_of_true",
     "target": {
-      "species_label": "C",
-      "species_type": 4,
-      "description": "Fraction of molecules that are C (satisfied)"
+      "species_labels": ["C", "F"],
+      "species_types": [4, 10],
+      "description": "Concentration of true particles (C and F) at end of simulation"
     },
-    "threshold": 0.6,
-    "success_criteria": "Reach ≥60% C-yield before timeout",
+    "threshold": 0.7,
+    "success_criteria": "Reach ≥70% combined C+F concentration before timeout",
     "measurement_interval": 1000,
 
     "analysis_script": "analyze_trajectory_target_yield_and_work.py",
     "analysis_args": {
-      "site_types": [2, 3, 4],
+      "site_types": [2, 3, 4, 5, 8, 9, 10, 11],
       "bond_cutoff": 0.7,
-      "yield_mode": "species_fraction",
-      "species_label": "4"
+      "yield_mode": "concentration_of_true",
+      "species_labels": ["4", "10"]
     },
 
     "output_files": {
-      "trajectory": "dump.dimer_ksat_1core.lammpstrj",
+      "trajectory": "dump.dimer_ksat_1core_twosideB_twins.lammpstrj",
       "thermo": "lammps_stdout.log",
       "events": "slurm_*.err"
     }
@@ -117,30 +173,26 @@
     "allowed_modifications": [
       "state_transitions",
       "interaction_strengths",
-      "contact_cutoffs"
+      "contact_cutoffs",
+      "hysteresis_checks"
     ],
-    "description": "Participants design the state-change policy (when/how to flip) and can tune interaction parameters (morse depths, cutoffs). The molecular encoding (species, geometry, initial composition) is fixed by the problem."
+    "description": "Participants design the state-change policy (when/how to flip A→C and E→F) and can tune interaction parameters. The molecular encoding (species, geometry, initial composition) is fixed by the problem."
   },
 
   "scoring": {
-    "primary_metric": "work_per_yield",
-    "description": "Minimize fuel consumed (ΔPE or flip count) per unit of C-yield achieved. Lower is better.",
-    "formula": "work_per_yield = cumulative_work / final_yield",
+    "primary_metric": "concentration_of_true_particles",
+    "description": "Maximize concentration of true particles (C and F) at end of simulation. Higher is better.",
+    "formula": "concentration = (n_C + n_F) / (n_A + n_C + n_E + n_F)",
 
     "secondary_metrics": [
       {
-        "name": "final_yield",
-        "description": "Final fraction of C molecules at end of simulation",
-        "higher_is_better": true
-      },
-      {
-        "name": "flip_count",
-        "description": "Total number of state change events (fuel consumption proxy)",
+        "name": "total_state_changes",
+        "description": "Total number of A→C and E→F flip events",
         "higher_is_better": false
       },
       {
-        "name": "time_to_threshold",
-        "description": "Timesteps required to reach 60% C-yield",
+        "name": "time_to_solution",
+        "description": "Timesteps required to reach 70% true particle concentration",
         "higher_is_better": false
       },
       {
@@ -160,18 +212,18 @@
         "description": "Simulation timeout (no additional penalty, just stop)"
       },
       {
-        "type": "low_yield",
-        "threshold": 0.1,
-        "penalty_factor": 10.0,
-        "description": "Penalize solutions that barely convert any A to C"
+        "type": "low_concentration",
+        "threshold": 0.3,
+        "penalty_factor": 5.0,
+        "description": "Penalize solutions with very low true particle concentration"
       }
     ],
 
     "leaderboard_display": [
-      "work_per_yield",
-      "final_yield",
-      "flip_count",
-      "time_to_threshold"
+      "concentration_of_true_particles",
+      "total_state_changes",
+      "time_to_solution",
+      "cumulative_work"
     ]
   },
 
@@ -183,18 +235,22 @@
       {
         "from": "A",
         "to": "C",
-        "description": "Main reaction: unsatisfied → satisfied"
+        "description": "Channel 1: A→C when A,A on both B faces (flip higher ID)",
+        "trigger_condition": "A,A attached to B on both faces simultaneously"
       },
       {
-        "from": "C",
-        "to": "A",
-        "description": "Reverse reaction (optional, lower probability)",
-        "optional": true
+        "from": "E",
+        "to": "F",
+        "description": "Channel 2: E→F when E attaches to D (any face)",
+        "trigger_condition": "E attached to D (even one face)"
       }
     ],
 
     "forbidden_transitions": [
-      "B → anything (B is catalyst, must stay B)",
+      "C → A (C is true, non-switchable)",
+      "F → E (F is true, non-switchable)",
+      "B → anything (B is condition monomer, must stay B)",
+      "D → anything (D is condition monomer, must stay D)",
       "core → anything (cores never change)"
     ],
 
@@ -210,20 +266,12 @@
 
     "tunable_parameters": [
       {
-        "name": "morse_depth_AB",
+        "name": "morse_depth",
         "min": 0.1,
         "max": 5.0,
         "default": 1.0,
-        "description": "Morse potential depth for A-B (type 2-3) interaction",
-        "physical_meaning": "Binding strength between unsatisfied clause and catalyst"
-      },
-      {
-        "name": "morse_depth_BC",
-        "min": 0.1,
-        "max": 5.0,
-        "default": 1.0,
-        "description": "Morse potential depth for B-C (type 3-4) interaction",
-        "physical_meaning": "Binding strength between satisfied clause and catalyst"
+        "description": "Morse potential depth for all attractive pairs",
+        "physical_meaning": "Binding strength between patches"
       },
       {
         "name": "morse_alpha",
@@ -262,15 +310,15 @@
     "correctness_checks": [
       {
         "check": "molecule_count",
-        "description": "Total molecules must stay constant (30)"
+        "description": "Total molecules must stay constant (50)"
       },
       {
         "check": "topology_valid",
-        "description": "Each molecule has 1 core + 3 patches"
+        "description": "Each molecule has 1 core + 3 patches (A,C,E,F) or 1 core + 6 patches (B,D)"
       },
       {
-        "check": "B_unchanged",
-        "description": "All B molecules must remain B (catalyst invariant)"
+        "check": "B_D_unchanged",
+        "description": "All B and D molecules must remain unchanged (condition monomers invariant)"
       },
       {
         "check": "energy_reasonable",
@@ -279,10 +327,33 @@
     ],
 
     "required_outputs": [
-      "dump.dimer_ksat_1core.lammpstrj",
+      "dump.dimer_ksat_1core_twosideB_twins.lammpstrj",
       "lammps_stdout.log",
       "slurm_*.err"
     ]
+  },
+
+  "problem_structure": {
+    "condition_B": {
+      "type": "TF",
+      "description": "Allows only 1 false (A) monomer to be attached at a time. If A,A are attached simultaneously to B on both faces, one (higher ID) flips to C (true). If C,C or A,C are attached, nothing happens.",
+      "monomers": {
+        "A": "false (switchable)",
+        "B": "condition monomer with two patch faces",
+        "C": "true (non-switchable)"
+      }
+    },
+    "condition_D": {
+      "type": "TT",
+      "description": "Both need to be true (F). If even one false (E) attaches to D, it switches to type F (true).",
+      "monomers": {
+        "E": "false (switchable)",
+        "D": "condition monomer with two patch faces",
+        "F": "true (non-switchable)"
+      }
+    },
+    "independence": "The two sets A,B,C and D,E,F are independent and do not interact with each other.",
+    "solution": "If we set B to True (ON), both rules are satisfied: (Anything ∨ True) = True for both conditions."
   },
 
   "starter_template": {
@@ -292,21 +363,14 @@
   },
 
   "references": {
-    "proposal_figure": "Figure 3 (3-SAT encoding and policy comparison)",
     "related_problems": [
-      "problem-003-hamiltonian-path (graph encoding)",
-      "problem-004-frustrated-sampling (directional sampling)"
+      "problem-001-ksat-advanced (advanced version with Python submissions)"
     ],
     "baseline_performance": {
-      "random_policy": {
-        "final_yield": 0.45,
-        "work_per_yield": 15.2,
-        "description": "Random flip when in contact (no intelligence)"
-      },
       "greedy_policy": {
-        "final_yield": 0.72,
-        "work_per_yield": 8.3,
-        "description": "Always flip A→C when touching B, hysteresis=5"
+        "concentration": 0.75,
+        "total_state_changes": 15,
+        "description": "Always flip A→C when A,A on both B faces, E→F when E on D"
       }
     }
   },
@@ -317,12 +381,13 @@
     "skills_required": [
       "Understanding JSON schema",
       "Basic probability tuning",
-      "Hysteresis concept"
+      "Hysteresis concept",
+      "Two-channel logic"
     ],
     "skills_developed": [
       "Policy design for non-equilibrium systems",
-      "Energy-yield tradeoff optimization",
-      "Contact-based trigger logic"
+      "Multi-channel state-change logic",
+      "Concentration optimization"
     ]
   }
 }

@@ -1,7 +1,7 @@
 {
   "problem_id": "problem-001-dimer-ksat",
   "title": "A→C Catalytic Conversion via B Species",
-  "description": "Convert A-labeled monomers to C-labeled monomers using B as a catalyst. Minimize fuel consumption (flip count) while maximizing C yield. This is a simplified k-SAT encoding where A represents unsatisfied clauses and C represents satisfied clauses, with B acting as variable flips.",
+  "description": "Convert A-labeled monomers to C-labeled monomers using B as a catalyst. Minimize energy consumption (flip count) while maximizing C yield. This is a simplified k-SAT encoding where A represents unsatisfied clauses and C represents satisfied clauses, with B acting as variable flips.",
 
   "category": "species_conversion",
 
@@ -61,7 +61,7 @@
 
   "scoring": {
     "primary_metric": "work_per_yield",
-    "description": "Minimize fuel consumed per unit of C-yield. Work = ΔPE between thermo outputs.",
+    "description": "Minimize energy consumed per unit of C-yield. Work = ΔPE between thermo outputs.",
     "secondary_metrics": [
       "final_yield",
       "flip_count",
@@ -132,7 +132,7 @@
     "proposal_section": "3-SAT and Species Conversion",
     "related_work": [
       "Simplified version of k-SAT clause satisfaction",
-      "Tests basic non-equilibrium fuel-driven computation"
+      "Tests basic non-equilibrium driven computation"
     ]
   }
 }
