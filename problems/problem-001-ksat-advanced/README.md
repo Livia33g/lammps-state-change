@@ -1,57 +1,51 @@
-# Problem 001: Abstract 3-SAT Instance
+# Problem 001: Abstract 2-SAT Dimer Instance
 
 ## Problem Statement
 
-You are given a **3-SAT formula** (conjunctive normal form with 3 literals per clause). Your task is to:
+You are given a **2-SAT formula** encoded as a dimer patchy-particle system with two independent conditions. Your task is to:
 
-1. **Encode** this formula into a patchy-particle LAMMPS system of your own design
-2. **Design** a custom state-change policy (C++ fix) that drives the system toward a satisfying assignment
-3. **Decode** a truth assignment from the simulation trajectory
-
-The formula is:
-
-```
-φ = (x₁ ∨ ¬x₂ ∨ x₃) ∧ (¬x₁ ∨ x₄ ∨ x₅) ∧ (x₂ ∨ x₃ ∨ ¬x₆) ∧ (¬x₃ ∨ ¬x₄ ∨ x₆) ∧ (x₁ ∨ x₅ ∨ ¬x₆)
-```
-
-**In CNF notation:**
-```
-(1, -2, 3) ∧ (-1, 4, 5) ∧ (2, 3, -6) ∧ (-3, -4, 6) ∧ (1, 5, -6)
-```
-
-Where positive integers represent variables and negative integers represent negated variables.
+1. **Encode** this 2-SAT problem into a patchy-particle LAMMPS system using a dimer structure
+2. **Design** a custom state-change policy (C++ fix) that implements the logical rules for each condition
+3. **Decode** the solution by measuring the concentration of true/false particles at the end of the simulation
 
 ## Problem Definition
 
-- **Number of variables:** 6 (x₁ through x₆)
-- **Number of clauses:** 5
-- **Clause structure:** Each clause contains exactly 3 literals
+This is a **2-SAT problem** with two independent conditions:
 
-The problem definition is provided in `problem.json` as:
+### Condition B (TF - True OR False)
+- **Monomer B**: A condition monomer with two patch faces
+- **Monomer A**: False (switchable) - can flip to C
+- **Monomer C**: True (non-switchable)
+- **Rule**: Allows only 1 false (A) monomer to be attached at a time
+  - If **A, A** are attached simultaneously to B (on both faces), flip the one with **higher molecule ID** to C (true)
+  - If **C, C** are attached, nothing happens
+  - If **A, C** are attached, nothing happens
 
-```json
-{
-  "sat_instance": {
-    "n_variables": 6,
-    "clauses": [
-      [1, -2, 3],
-      [-1, 4, 5],
-      [2, 3, -6],
-      [-3, -4, 6],
-      [1, 5, -6]
-    ]
-  }
-}
-```
+### Condition D (TT - True AND True)
+- **Monomer D**: A condition monomer with two patch faces
+- **Monomer E**: False (switchable) - can flip to F
+- **Monomer F**: True (non-switchable)
+- **Rule**: Both need to be true (F)
+  - If even **one false (E)** attaches to D, switch it to type F (true), regardless of what is attached to the other side
+
+### Independence
+The two sets **A, B, C** and **D, E, F** are **independent** and do **not interact** with each other.
+
+## The Solution
+
+**If we set B to True (ON), both rules are satisfied:**
+
+- **Rule 1 (B=TF)**: (Anything ∨ True) = True ✓
+- **Rule 2 (D=TT)**: (Anything ∨ True) = True ✓
 
 ## Your Challenge
 
-**Design freedom:** You have complete freedom to choose:
+**Design a dimer system** following the structure similar to `state-change/dimer_ksat/twosideB_twin`:
 
-- **Patchy particle geometry:** How many patches? What arrangement? What types?
-- **Encoding strategy:** How do variables map to particles or states? How do clauses map to interactions or constraints?
-- **State-change policy:** When and how do particles flip states? What drives the system toward satisfaction?
-- **Decoding strategy:** How do you read a satisfying assignment from the trajectory?
+- Use the same potentials and structure as the reference implementation
+- Implement two independent channels: **A,B,C** and **D,E,F**
+- Each condition monomer (B and D) has two patch faces
+- Implement the state-change logic described above in your C++ fix
 
 **Constraints:**
 
@@ -63,17 +57,17 @@ The problem definition is provided in `problem.json` as:
 
 ## Scoring
 
-- **Primary metric:** Work per satisfied clause (lower is better)
-  - Work = number of state-change events (or equivalent energy measure)
-- **Tie-breakers:** Total work, time to first satisfying assignment
+- **Primary metric:** Concentration of true particles (C and F) at the end of simulation (higher is better)
+  - The solution B=True should maximize this concentration
+- **Tie-breakers:** Total state changes, time to solution
 
 ## Verification
 
-We will independently verify that your decoded assignment satisfies all clauses. If it does not, your submission is disqualified regardless of efficiency.
+We will independently verify that your decoded assignment satisfies both conditions. The solution is measured by the concentration of true/false particles at the end of the simulation. If your solution does not satisfy both conditions, your submission is disqualified regardless of efficiency.
 
-## Example Solution
+## Reference Structure
 
-See `advance/example_submission.py` for a complete working example that demonstrates one possible encoding/design/decode strategy. **You are not required to follow this approach**—it is provided only as a reference.
+See `state-change/dimer_ksat/twosideB_twin` for the general structure and how it works. The logic and structure should be similar—use the same potentials and structure, but implement the specific state-change rules described above.
 
 ## Submission Format
 
@@ -91,4 +85,3 @@ python advance/check_submission.py --submission your_submission.py --problem pro
 ```
 
 If the checker fails, your submission will not run on our side and will be automatically disqualified.
-

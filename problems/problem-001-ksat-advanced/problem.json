@@ -1,43 +1,63 @@
 {
   "problem_id": "problem-001-ksat-advanced",
-  "title": "Abstract 3-SAT instance for state-change design",
-  "description": "An abstract 3-SAT formula that must be encoded into a patchy-particle system by the competitor. This problem contains only the logical structure (variables and clauses), not a fixed molecular encoding.",
+  "title": "Abstract 2-SAT dimer instance for state-change design",
+  "description": "An abstract 2-SAT formula encoded as a dimer patchy-particle system. This problem contains the logical structure (two conditions) that must be satisfied through state-changing patchy particles.",
 
-  "category": "abstract_3sat",
+  "category": "abstract_2sat_dimer",
 
   "sat_instance": {
-    "n_variables": 6,
+    "n_variables": 1,
     "clauses": [
-      [1, -2, 3],
-      [-1, 4, 5],
-      [2, 3, -6],
-      [-3, -4, 6],
-      [1, 5, -6]
+      ["B", "TF"],
+      ["D", "TT"]
     ],
-    "convention": "Each clause is a list of 3 integers. Positive k means variable k, negative k means NOT variable k."
+    "convention": "Two independent conditions: B (TF) and D (TT). Each condition is a 2-SAT clause where the first element is the condition name and the second is the truth table pattern (TF = True OR False, TT = True AND True)."
+  },
+
+  "problem_structure": {
+    "condition_B": {
+      "type": "TF",
+      "description": "Allows only 1 false (A) monomer to be attached at a time. If A,A are attached simultaneously to B on both faces, one (higher ID) flips to C (true). If C,C or A,C are attached, nothing happens.",
+      "monomers": {
+        "A": "false (switchable)",
+        "B": "condition monomer with two patch faces (B_face1, B_face2)",
+        "C": "true (non-switchable)"
+      }
+    },
+    "condition_D": {
+      "type": "TT",
+      "description": "Both need to be true (F). If even one false (E) attaches to D, it switches to type F (true).",
+      "monomers": {
+        "E": "false (switchable)",
+        "D": "condition monomer with two patch faces (D_face1, D_face2)",
+        "F": "true (non-switchable)"
+      }
+    },
+    "independence": "The two sets A,B,C and D,E,F are independent and do not interact with each other.",
+    "solution": "If we set B to True (ON), both rules are satisfied: (Anything ∨ True) = True for both conditions."
   },
 
   "simulation_constraints": {
     "max_particles": 500,
     "max_steps": 2000000,
     "max_walltime": "24:00:00",
-    "notes": "Competitors are free to choose patch types, geometry, and interactions, subject to these global resource limits."
+    "notes": "Competitors must design a dimer system with two independent channels (A,B,C and D,E,F) following the state-change logic described above. Use the same structure and potentials as the basic competition (see state-change/dimer_ksat/twosideB_twin)."
   },
 
   "expected_decode": {
-    "assignment_length": 6,
+    "assignment_length": 1,
     "must_report_satisfied": true,
-    "tolerance": "The decoded assignment must satisfy all clauses of the formula. We will verify independently."
+    "measurement": "Solution is measured by the concentration of true/false particles at the end of the simulation. B=True satisfies both conditions.",
+    "tolerance": "The decoded assignment must satisfy both conditions. We will verify independently."
   },
 
   "scoring": {
-    "primary_metric": "work_per_satisfied_clause",
-    "description": "Lower work (number of state-change events or an equivalent energy measure) per satisfied clause is better.",
+    "primary_metric": "concentration_of_true_particles",
+    "description": "Higher concentration of true particles (C and F) at the end of simulation is better. The solution B=True should maximize this.",
+    "formula": "concentration = (n_C + n_F) / (n_A + n_C + n_E + n_F)",
     "tie_breakers": [
-      "total_work",
-      "time_to_first_satisfying_assignment"
+      "total_state_changes",
+      "time_to_solution"
     ]
   }
 }
-
-
