@@ -101,10 +101,31 @@ def generate_data_file(problem: Dict[str, Any], params: Dict[str, Any],
             (0.5, 0.0866025404, -0.05),
             (0.5, -0.0866025404, -0.05),
         ]
+        patch_neg = None
+        is_twoside = False
+    elif encoding['geometry'] == '1core_twosideB_twins':
+        # Two independent channels: ABC (core type 1) and EFD (core type 12)
+        # Simple molecules (A,C,E,F): 1 core + 3 patches on +x face
+        # Two-face molecules (B,D): 1 core + 6 patches (3 on +x, 3 on -x)
+        core_pos = [(0.0, 0.0, 0.0)]
+        patch_pos = [
+            (0.5, 0.0, 0.1),
+            (0.5, 0.0866025404, -0.05),
+            (0.5, -0.0866025404, -0.05),
+        ]
+        patch_neg = [(-x, y, -z) for (x, y, z) in patch_pos]  # 180° rotation about y
+        is_twoside = True
+        # Calculate total atoms (varies by species)
+        atoms_simple = 1 + 3  # A,C,E,F
+        atoms_twoface = 1 + 6  # B,D
+        n_simple = sum(composition.get(label, 0) for label in ['A', 'C', 'E', 'F'])
+        n_twoface = sum(composition.get(label, 0) for label in ['B', 'D'])
+        natoms = n_simple * atoms_simple + n_twoface * atoms_twoface
     else:
         raise NotImplementedError(f"Geometry {encoding['geometry']} not yet supported")
 
-    natoms = n_mol * atoms_per_mol
+    if not is_twoside:
+        natoms = n_mol * atoms_per_mol
 
     # Box size
     c_total = system_params['density']
@@ -125,8 +146,11 @@ def generate_data_file(problem: Dict[str, Any], params: Dict[str, Any],
         f.write(f"{natoms} atoms\n")
         f.write("0 bonds\n0 angles\n0 dihedrals\n0 impropers\n\n")
 
-        # Count atom types (core + all patch types)
-        ntypes = len(species)
+        # Count atom types (for twins: 12 types total: 1,2,3,4,5,8,9,10,11,12)
+        if encoding['geometry'] == '1core_twosideB_twins':
+            ntypes = 12
+        else:
+            ntypes = len(species)
         f.write(f"{ntypes} atom types\n\n")
 
         f.write(f"{-box_l/2:.4f} {box_l/2:.4f} xlo xhi\n")
@@ -134,8 +158,19 @@ def generate_data_file(problem: Dict[str, Any], params: Dict[str, Any],
         f.write(f"{-box_l/2:.4f} {box_l/2:.4f} zlo zhi\n\n")
 
         f.write("Masses\n\n")
-        for label, spec in species.items():
-            f.write(f"{spec['lammps_type']} {spec['mass']:.6f}\n")
+        if encoding['geometry'] == '1core_twosideB_twins':
+            # Write masses for all types 1-12
+            mass_core = species.get('core_ABC', {}).get('mass', 0.6)
+            mass_patch = species.get('A', {}).get('mass', 0.1)
+            f.write(f"1 {mass_core:.6f}\n")  # ABC core
+            for t in range(2, 6):  # Types 2,3,4,5
+                f.write(f"{t} {mass_patch:.6f}\n")
+            for t in range(8, 12):  # Types 8,9,10,11
+                f.write(f"{t} {mass_patch:.6f}\n")
+            f.write(f"12 {mass_core:.6f}\n")  # EFD core
+        else:
+            for label, spec in species.items():
+                f.write(f"{spec['lammps_type']} {spec['mass']:.6f}\n")
         f.write("\n")
 
         f.write("Atoms # full\n\n")
@@ -143,37 +178,90 @@ def generate_data_file(problem: Dict[str, Any], params: Dict[str, Any],
         atom_id = 1
         mol_id = 1
 
-        # Place molecules according to composition
-        for idx, (cx, cy, cz) in enumerate(positions):
-            # Determine which species this molecule is
-            species_label = None
-            cumulative = 0
-            for label in species_order:
-                cumulative += composition[label]
-                if idx < cumulative:
-                    species_label = label
-                    break
-
-            if species_label is None:
-                species_label = species_order[-1]
-
-            spec = species[species_label]
-            patch_type = spec['lammps_type']
-
-            # Write core atom (type 1)
-            for (dx, dy, dz) in core_pos:
-                core_type = species['core']['lammps_type']
-                f.write(f"{atom_id} {mol_id} {core_type} 0.0 "
-                       f"{cx+dx:.6f} {cy+dy:.6f} {cz+dz:.6f}\n")
+        if encoding['geometry'] == '1core_twosideB_twins':
+            # Create list of molecule kinds (A, B, C, D, E, F)
+            kinds = []
+            for label in ['A', 'B', 'C', 'D', 'E', 'F']:
+                kinds.extend([label] * composition.get(label, 0))
+            random.Random(4321).shuffle(kinds)
+            
+            # Place molecules
+            for (cx, cy, cz), kind in zip(positions, kinds):
+                # Determine core type: ABC channel uses 1, EFD channel uses 12
+                core_type = 12 if kind in ("E", "F", "D") else 1
+                f.write(f"{atom_id} {mol_id} {core_type} 0.0 {cx:.6f} {cy:.6f} {cz:.6f}\n")
                 atom_id += 1
+                
+                if kind == "A":
+                    patch_type = 2
+                    for (dx, dy, dz) in patch_pos:
+                        f.write(f"{atom_id} {mol_id} {patch_type} 0.0 {cx+dx:.6f} {cy+dy:.6f} {cz+dz:.6f}\n")
+                        atom_id += 1
+                elif kind == "C":
+                    patch_type = 4
+                    for (dx, dy, dz) in patch_pos:
+                        f.write(f"{atom_id} {mol_id} {patch_type} 0.0 {cx+dx:.6f} {cy+dy:.6f} {cz+dz:.6f}\n")
+                        atom_id += 1
+                elif kind == "E":
+                    patch_type = 8
+                    for (dx, dy, dz) in patch_pos:
+                        f.write(f"{atom_id} {mol_id} {patch_type} 0.0 {cx+dx:.6f} {cy+dy:.6f} {cz+dz:.6f}\n")
+                        atom_id += 1
+                elif kind == "F":
+                    patch_type = 10
+                    for (dx, dy, dz) in patch_pos:
+                        f.write(f"{atom_id} {mol_id} {patch_type} 0.0 {cx+dx:.6f} {cy+dy:.6f} {cz+dz:.6f}\n")
+                        atom_id += 1
+                elif kind == "B":
+                    # Two faces: +x face (type 3) and -x face (type 5)
+                    for (dx, dy, dz) in patch_pos:
+                        f.write(f"{atom_id} {mol_id} 3 0.0 {cx+dx:.6f} {cy+dy:.6f} {cz+dz:.6f}\n")
+                        atom_id += 1
+                    for (dx, dy, dz) in patch_neg:
+                        f.write(f"{atom_id} {mol_id} 5 0.0 {cx+dx:.6f} {cy+dy:.6f} {cz+dz:.6f}\n")
+                        atom_id += 1
+                else:  # D
+                    # Two faces: +x face (type 9) and -x face (type 11)
+                    for (dx, dy, dz) in patch_pos:
+                        f.write(f"{atom_id} {mol_id} 9 0.0 {cx+dx:.6f} {cy+dy:.6f} {cz+dz:.6f}\n")
+                        atom_id += 1
+                    for (dx, dy, dz) in patch_neg:
+                        f.write(f"{atom_id} {mol_id} 11 0.0 {cx+dx:.6f} {cy+dy:.6f} {cz+dz:.6f}\n")
+                        atom_id += 1
+                
+                mol_id += 1
+        else:
+            # Place molecules according to composition (original logic)
+            for idx, (cx, cy, cz) in enumerate(positions):
+                # Determine which species this molecule is
+                species_label = None
+                cumulative = 0
+                for label in species_order:
+                    cumulative += composition[label]
+                    if idx < cumulative:
+                        species_label = label
+                        break
 
-            # Write patch atoms (type depends on species)
-            for (dx, dy, dz) in patch_pos:
-                f.write(f"{atom_id} {mol_id} {patch_type} 0.0 "
-                       f"{cx+dx:.6f} {cy+dy:.6f} {cz+dz:.6f}\n")
-                atom_id += 1
+                if species_label is None:
+                    species_label = species_order[-1]
 
-            mol_id += 1
+                spec = species[species_label]
+                patch_type = spec['lammps_type']
+
+                # Write core atom (type 1)
+                for (dx, dy, dz) in core_pos:
+                    core_type = species['core']['lammps_type']
+                    f.write(f"{atom_id} {mol_id} {core_type} 0.0 "
+                           f"{cx+dx:.6f} {cy+dy:.6f} {cz+dz:.6f}\n")
+                    atom_id += 1
+
+                # Write patch atoms (type depends on species)
+                for (dx, dy, dz) in patch_pos:
+                    f.write(f"{atom_id} {mol_id} {patch_type} 0.0 "
+                           f"{cx+dx:.6f} {cy+dy:.6f} {cz+dz:.6f}\n")
+                    atom_id += 1
+
+                mol_id += 1
 
     print(f"✓ Generated {output_path}")
 
@@ -224,46 +312,74 @@ def generate_input_script(problem: Dict[str, Any], params: Dict[str, Any],
         f.write(f"read_data       {data_file}\n\n")
 
         f.write("# Groups\n")
-        f.write("group cores type 1\n")
+        if encoding['geometry'] == '1core_twosideB_twins':
+            f.write("group cores type 1 12\n")
+            f.write("group patches type 2 3 4 5 8 9 10 11\n")
+        else:
+            f.write("group cores type 1\n")
+            # Create groups for each species
+            species = {s['label']: s for s in encoding['species']}
+            patch_types = [s['lammps_type'] for s in species.values() if s['role'] == 'patch']
+            f.write(f"group patches type {' '.join(map(str, patch_types))}\n")
 
-        # Create groups for each species
-        species = {s['label']: s for s in encoding['species']}
-        patch_types = [s['lammps_type'] for s in species.values() if s['role'] == 'patch']
-        f.write(f"group patches type {' '.join(map(str, patch_types))}\n")
-
-        for label, spec in species.items():
-            if spec['role'] == 'patch':
-                f.write(f"group patches_{label} type {spec['lammps_type']}\n")
+            for label, spec in species.items():
+                if spec['role'] == 'patch':
+                    f.write(f"group patches_{label} type {spec['lammps_type']}\n")
         f.write("\n")
 
         f.write("# Pair potentials\n")
         f.write(f"pair_style hybrid morse {morse_rcut:.6f} soft {core_diameter:.6f}\n")
 
-        # Core-core soft repulsion
-        f.write(f"pair_coeff 1 1 soft {soft_a:.6f} {core_diameter:.6f}\n")
+        if encoding['geometry'] == '1core_twosideB_twins':
+            # Core-core soft repulsion (1-1, 1-12, 12-12)
+            f.write(f"pair_coeff 1 1 soft {soft_a:.6f} {core_diameter:.6f}\n")
+            f.write(f"pair_coeff 1 12 soft {soft_a:.6f} {core_diameter:.6f}\n")
+            f.write(f"pair_coeff 12 12 soft {soft_a:.6f} {core_diameter:.6f}\n")
+            
+            # Set neutral Morse for all other pairs first
+            all_types = list(range(1, 13))  # 1..12
+            for i, t1 in enumerate(all_types):
+                for t2 in all_types[i:]:
+                    if (t1, t2) in ((1, 1), (1, 12), (12, 12)):
+                        continue  # Already set to soft
+                    f.write(f"pair_coeff {t1} {t2} morse 0.0 {morse_alpha:.6f} {morse_r0:.6f}\n")
+            
+            # Channel ABC attractions (A/C to B faces: types 2,4 with 3,5)
+            morse_depth = params.get('morse_depth', 1.0)
+            for bf in (3, 5):  # B_face1 and B_face2
+                f.write(f"pair_coeff 2 {bf} morse {morse_depth:.6f} {morse_alpha:.6f} {morse_r0:.6f}\n")
+                f.write(f"pair_coeff 4 {bf} morse {morse_depth:.6f} {morse_alpha:.6f} {morse_r0:.6f}\n")
+            
+            # Channel EFD attractions (E/F to D faces: types 8,10 with 9,11)
+            for df in (9, 11):  # D_face1 and D_face2
+                f.write(f"pair_coeff 8 {df} morse {morse_depth:.6f} {morse_alpha:.6f} {morse_r0:.6f}\n")
+                f.write(f"pair_coeff 10 {df} morse {morse_depth:.6f} {morse_alpha:.6f} {morse_r0:.6f}\n")
+        else:
+            # Core-core soft repulsion
+            f.write(f"pair_coeff 1 1 soft {soft_a:.6f} {core_diameter:.6f}\n")
 
-        # Neutral interactions (morse D0=0)
-        ntypes = len(species)
-        for i in range(1, ntypes + 1):
-            for j in range(i, ntypes + 1):
-                if i == 1 and j == 1:
-                    continue  # Already defined core-core
-                f.write(f"pair_coeff {i} {j} morse 0.0 {morse_alpha:.6f} {morse_r0:.6f}\n")
+            # Neutral interactions (morse D0=0)
+            ntypes = len(species)
+            for i in range(1, ntypes + 1):
+                for j in range(i, ntypes + 1):
+                    if i == 1 and j == 1:
+                        continue  # Already defined core-core
+                    f.write(f"pair_coeff {i} {j} morse 0.0 {morse_alpha:.6f} {morse_r0:.6f}\n")
 
-        # Attractive interactions (from problem definition)
-        for pair_info in interactions.get('attractive_pairs', []):
-            types = pair_info['types'].split('-')
-            type1, type2 = int(types[0]), int(types[1])
+            # Attractive interactions (from problem definition)
+            for pair_info in interactions.get('attractive_pairs', []):
+                types = pair_info['types'].split('-')
+                type1, type2 = int(types[0]), int(types[1])
 
-            # Determine which depth to use
-            if '2' in types and '3' in types:  # A-B
-                depth = morse_depth_AB
-            elif '3' in types and '4' in types:  # B-C
-                depth = morse_depth_BC
-            else:
-                depth = 1.0  # default
+                # Determine which depth to use
+                if '2' in types and '3' in types:  # A-B
+                    depth = morse_depth_AB
+                elif '3' in types and '4' in types:  # B-C
+                    depth = morse_depth_BC
+                else:
+                    depth = 1.0  # default
 
-            f.write(f"pair_coeff {type1} {type2} morse {depth:.6f} {morse_alpha:.6f} {morse_r0:.6f}\n")
+                f.write(f"pair_coeff {type1} {type2} morse {depth:.6f} {morse_alpha:.6f} {morse_r0:.6f}\n")
         f.write("\n")
 
         f.write("# Neighbor settings\n")
