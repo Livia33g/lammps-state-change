@@ -83,7 +83,9 @@ Use this form for the advanced competition submissions:
 
 - **`submission_template.py`** – Template with required class structure and method signatures
 - **`check_submission.py`** – **RUN THIS BEFORE SUBMITTING** to verify your code structure
-- **`example_submission.py`** – Complete working example (one possible strategy; you can use a different approach)
+- **`example_submission.py`** – Example for generic 3-SAT problem (simplified)
+- **`example_submission_2sat.py`** – **Complete working example for 2-SAT dimer problem** (recommended reference)
+- **`COMPILATION_TIPS.md`** – Comprehensive guide to common sandbox failures and fixes
 
 ### Before You Submit
 
@@ -149,5 +151,75 @@ FixStyle(state/change/<name>,FixStateChangeName);
   - `python advance/check_submission.py --submission your_submission.py --problem problems/problem-001-ksat-advanced/problem.json`
 - Ensure your `in.*` explicitly sets `mass` for all used atom types.
 - Ensure your header uses the `#ifdef FIX_CLASS` + `FixStyle(...)` pattern (as above).
+
+---
+
+## 🔗 Component Coherence: Why It Matters
+
+Your submission has **three components** that must work together coherently:
+
+1. **`encode()`** - Creates the LAMMPS system (atom types, geometry, interactions)
+2. **`design_policy()`** - Generates C++ fix that implements state-change logic  
+3. **`decode()`** - Reads simulation results to extract solution
+
+### ⚠️ Critical: Components Must Be Coherent
+
+If these components are **not coherent**, your submission will produce **null/invalid results**:
+
+- ❌ **encode()** creates type 2 for A, but **design_policy()** looks for type 3 → **No state changes occur**
+- ❌ **encode()** creates geometry with 3 patches, but **design_policy()** expects 6 patches → **Crashes or wrong behavior**
+- ❌ **design_policy()** flips type 2→4, but **decode()** counts type 5 → **Wrong solution measurement**
+- ❌ **encode()** uses channel ABC (types 1-5), but **design_policy()** checks channel EFD (types 8-12) → **No flips happen**
+
+### ✅ How to Ensure Coherence
+
+1. **Define atom type mapping once** and use it consistently:
+   ```python
+   # In __init__ or encode():
+   self.type_map = {
+       "A": 2, "B_face1": 3, "C": 4, "B_face2": 5,
+       "E": 8, "D_face1": 9, "F": 10, "D_face2": 11
+   }
+   ```
+
+2. **Pass metadata from encode() to design_policy()**:
+   ```python
+   def encode(self):
+       # ... create system ...
+       return {
+           "atom_types": self.type_map,  # Pass to design_policy
+           "geometry": "1core_twosideB_twins"
+       }
+   
+   def design_policy(self, system_meta):
+       type_map = system_meta["atom_types"]  # Use same mapping
+       # Generate C++ with correct types
+   ```
+
+3. **Use same types in decode()**:
+   ```python
+   def decode(self):
+       # Count types 4 (C) and 10 (F) - same as encode() created
+       n_C = count_type(4)
+       n_F = count_type(10)
+   ```
+
+### 📖 Example: Working 2-SAT Submission
+
+See **`example_submission_2sat.py`** for a complete working example that demonstrates:
+- ✅ Proper encoding with correct atom types and geometry
+- ✅ C++ fix that implements the 2-SAT logic correctly
+- ✅ Decoding that measures solution quality
+- ✅ Full coherence between all three components
+
+This example passes all sandbox checks and produces valid results.
+
+---
+
+## 📚 Additional Resources
+
+- **`COMPILATION_TIPS.md`** - Comprehensive guide to common sandbox failures and fixes
+- **`example_submission_2sat.py`** - Complete working 2-SAT example
+- **`submission_template.py`** - Template with required structure
 
 
