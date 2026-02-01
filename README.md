@@ -47,18 +47,20 @@ Participants design **state-change policies** (when and how molecules flip betwe
 1. **Checkout this branch**: `git checkout advance-interface` (if not already here)
 2. **Read the guide**: [advance/README.md](advance/README.md)
 3. **Choose a problem**: Browse `problems/problem-001-ksat-advanced/`
-4. **Study the example**: Look at `advance/example_submission.py`
-5. **Write your solution**: Implement `StateChangeSolution` class
+4. **Study the example**: Look at `advance/example_submission_2sat.py` (complete working example for 2-SAT)
+5. **Write your solution**: Implement `StateChangeSolution` class (you design your own encoding!)
 6. **Test locally**: Run `advance/check_submission.py` before submitting
 7. **Submit**: Paste your Python file into the Google Form
 
-### For Classic Format Participants
+### For Basic (Classic) Format Participants
 
 1. **Checkout staging branch**: `git checkout staging`
-2. **Read the guide**: [PARTICIPANT_GUIDE.md](PARTICIPANT_GUIDE.md)
+2. **Read the guide**: [PARTICIPANT_GUIDE.md](PARTICIPANT_GUIDE.md) (on staging branch)
 3. **Choose a problem**: Browse `problems/` directory
 4. **Design your policy**: Fill in `policy.json` (declarative, no coding!)
 5. **Submit**: We run it on our cluster, update leaderboard
+
+**Note**: The basic competition uses a different repository (`state-change-test`). This branch (`advance-interface`) is for advanced submissions only.
 
 ### For Problem Creators
 

@@ -2,53 +2,71 @@
 
 ## Problem Statement
 
-You are given a **2-SAT formula** encoded as a dimer patchy-particle system with two independent conditions. Your task is to:
+You are given a **2-SAT problem** with two independent logical conditions. Your task is to:
 
-1. **Encode** this 2-SAT problem into a patchy-particle LAMMPS system using a dimer structure
-2. **Design** a custom state-change policy (C++ fix) that implements the logical rules for each condition
-3. **Decode** the solution by measuring the concentration of true/false particles at the end of the simulation
+1. **Encode** this abstract 2-SAT problem into a patchy-particle LAMMPS system (you design the encoding)
+2. **Design** a custom state-change policy (C++ fix) that implements the logical rules
+3. **Decode** the solution from your simulation results
 
-## Problem Definition
+## Abstract Problem Definition
 
-This is a **2-SAT problem** with two independent conditions:
+This is a **2-SAT problem** with two independent conditions that must be satisfied:
 
-### Condition B (TF - True OR False)
-- **Monomer B**: A condition monomer with two patch faces
-- **Monomer A**: False (switchable) - can flip to C
-- **Monomer C**: True (non-switchable)
-- **Rule**: Allows only 1 false (A) monomer to be attached at a time
-  - If **A, A** are attached simultaneously to B (on both faces), flip the one with **higher molecule ID** to C (true)
-  - If **C, C** are attached, nothing happens
-  - If **A, C** are attached, nothing happens
+### Condition 1: TF (True OR False)
+- **Logical meaning**: At least one of the two inputs must be True
+- **Truth table**: 
+  - (False, False) → **Unsatisfied** (both false)
+  - (True, False) → Satisfied
+  - (False, True) → Satisfied  
+  - (True, True) → Satisfied
 
-### Condition D (TT - True AND True)
-- **Monomer D**: A condition monomer with two patch faces
-- **Monomer E**: False (switchable) - can flip to F
-- **Monomer F**: True (non-switchable)
-- **Rule**: Both need to be true (F)
-  - If even **one false (E)** attaches to D, switch it to type F (true), regardless of what is attached to the other side
+**State-change rule**: If both inputs are False simultaneously, flip one of them to True (you decide which one and how).
+
+### Condition 2: TT (True AND True)
+- **Logical meaning**: Both inputs must be True
+- **Truth table**:
+  - (False, False) → **Unsatisfied**
+  - (True, False) → **Unsatisfied** (one false)
+  - (False, True) → **Unsatisfied** (one false)
+  - (True, True) → Satisfied
+
+**State-change rule**: If either input is False, flip it to True (regardless of the other input's state).
 
 ### Independence
-The two sets **A, B, C** and **D, E, F** are **independent** and do **not interact** with each other.
+The two conditions are **independent** - they do not interact with each other. You can encode them as separate molecular channels or in any way you choose.
 
 ## The Solution
 
-**If we set B to True (ON), both rules are satisfied:**
+**If we set Condition 1 to True, both conditions are satisfied:**
+- **Condition 1 (TF)**: (Anything ∨ True) = True ✓
+- **Condition 2 (TT)**: (Anything ∨ True) = True ✓
 
-- **Rule 1 (B=TF)**: (Anything ∨ True) = True ✓
-- **Rule 2 (D=TT)**: (Anything ∨ True) = True ✓
+(Note: This is one possible solution. Your encoding may have different solutions.)
 
 ## Your Challenge
 
-**Design a dimer system** following the structure similar to `state-change/dimer_ksat/twosideB_twin`:
+**Design your own encoding and state-change policy** to solve this 2-SAT problem. You have complete freedom to:
 
-- Use the same potentials and structure as the reference implementation
-- Implement two independent channels: **A,B,C** and **D,E,F**
-- Each condition monomer (B and D) has two patch faces
-- Implement the state-change logic described above in your C++ fix
+- Choose particle types and geometry
+- Design interaction potentials
+- Implement state-change logic in your C++ fix
+- Define how to decode the solution
+
+### Example Encoding (For Reference Only)
+
+One possible encoding (shown as an example - you don't have to use this):
+
+- **Condition 1 (TF)**: 
+  - Monomer types: A (false, switchable), B (condition with two faces), C (true, non-switchable)
+  - Rule: If A,A attached to B on both faces → flip higher-ID A→C
+  
+- **Condition 2 (TT)**:
+  - Monomer types: E (false, switchable), D (condition with two faces), F (true, non-switchable)
+  - Rule: If E attaches to D → flip E→F
+
+This is just **one example** - you are free to design a completely different encoding!
 
 **Constraints:**
-
 - Maximum 500 particles
 - Maximum 2,000,000 simulation steps
 - Maximum 24 hours walltime
@@ -57,17 +75,13 @@ The two sets **A, B, C** and **D, E, F** are **independent** and do **not intera
 
 ## Scoring
 
-- **Primary metric:** Concentration of true particles (C and F) at the end of simulation (higher is better)
-  - The solution B=True should maximize this concentration
-- **Tie-breakers:** Total state changes, time to solution
+- **Primary metric:** Solution correctness (does your decoded solution satisfy both conditions?)
+- **For binary problems:** Only solved solutions are ranked, by total work (lower is better)
+- **For continuous problems:** Ranked by your player-defined score (see decoding policy)
 
 ## Verification
 
-We will independently verify that your decoded assignment satisfies both conditions. The solution is measured by the concentration of true/false particles at the end of the simulation. If your solution does not satisfy both conditions, your submission is disqualified regardless of efficiency.
-
-## Reference Structure
-
-See `state-change/dimer_ksat/twosideB_twin` for the general structure and how it works. The logic and structure should be similar—use the same potentials and structure, but implement the specific state-change rules described above.
+We will independently verify that your decoded solution satisfies both conditions. If your solution does not satisfy both conditions, your submission is disqualified regardless of efficiency.
 
 ## Submission Format
 
@@ -85,3 +99,7 @@ python advance/check_submission.py --submission your_submission.py --problem pro
 ```
 
 If the checker fails, your submission will not run on our side and will be automatically disqualified.
+
+## Example Submission
+
+See `advance/example_submission_2sat.py` for a complete working example that demonstrates one possible encoding strategy. **You are free to use a completely different approach!**
